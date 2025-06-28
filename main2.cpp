@@ -50,27 +50,36 @@ int main() {
 
     // === 0. Configuración ===
     const string RATING_FILE = "../data/ratings.csv"; // Ruta al archivo de ratings
-    const int MAX_RATINGS = 10000000;
+
+    const int MAX_RATINGS = 100000;
+
     const int D = 32;
     const int TOP_K = 10;
-    const int LSH_TABLES = 10;
+    const int LSH_TABLES = 12;
     const int LSH_HASH_SIZE = 8;
-
+    const std::string BPR_VECTORS_FILE = "bpr_vectors.txt";
+    const std::string SRPR_VECTORS_FILE = "srpr_vectors.txt";
     // === 1. Carga de Datos ===
-    DataManager data_manager(RATING_FILE, MAX_RATINGS, 100);
+    DataManager data_manager(RATING_FILE, MAX_RATINGS, 200);
     data_manager.load_and_prepare_data();
     if (data_manager.get_training_triplets().empty()) return 1;
 
     // === 2. Entrenar Modelo Base (BPR) ===
     std::cout << "\n--- ENTRENANDO MODELO BASE (BPR) ---" << std::endl;
     MatrixFactorization bpr_model(data_manager.get_num_users(), data_manager.get_num_items(), D);
-    bpr_model.train(data_manager.get_training_triplets(), 50, 0.02, 0.01);
-
+    if (!bpr_model.load_vectors(BPR_VECTORS_FILE)) {
+        std::cout << "\n--- ENTRENANDO MODELO BASE (BPR) ---" << std::endl;
+        bpr_model.train(data_manager.get_training_triplets(), 50, 0.02, 0.01);
+        bpr_model.save_vectors(BPR_VECTORS_FILE);
+    }
     // === 3. Entrenar Modelo Avanzado (SRPR) ===
     std::cout << "\n--- ENTRENANDO MODELO AVANZADO (SRPR) ---" << std::endl;
     SRPRModel srpr_model(data_manager.get_num_users(), data_manager.get_num_items(), D);
-    srpr_model.train(data_manager.get_training_triplets(), LSH_HASH_SIZE, 0.05, 0.001, 50);
-
+    if(!srpr_model.load_vectors(SRPR_VECTORS_FILE)) {
+        std::cout << "\n--- ENTRENANDO MODELO AVANZADO (SRPR) ---" << std::endl;
+        srpr_model.train(data_manager.get_training_triplets(), 8, 0.05, 0.001, 50);
+        srpr_model.save_vectors(SRPR_VECTORS_FILE);
+    }
     // === 4. Evaluación Cuantitativa y Demostración ===
     std::cout << "\n\n--- EVALUACION CUANTITATIVA Y DEMOSTRACION ---" << std::endl;
 
@@ -96,16 +105,16 @@ int main() {
         const Vec& bpr_user_vec = bpr_model.get_user_vector(user_idx);
         auto bpr_ground_truth = get_brute_force_vec(bpr_user_vec, bpr_model, data_manager, TOP_K);
         auto bpr_lsh_results = lsh_index_bpr.find_neighbors(bpr_user_vec, TOP_K);
-        bpr_metrics_calculator.add_query_result(bpr_lsh_results, bpr_ground_truth);
+        bpr_metrics_calculator.add_query_result(user_idx, data_manager, bpr_lsh_results, bpr_ground_truth);
 
         // --- Sistema SRPR ---
         const Vec& srpr_user_vec = srpr_model.get_user_vector(user_idx);
         auto srpr_ground_truth = get_brute_force_vec(srpr_user_vec, srpr_model, data_manager, TOP_K);
         auto srpr_lsh_results = lsh_index_srpr.find_neighbors(srpr_user_vec, TOP_K);
-        srpr_metrics_calculator.add_query_result(srpr_lsh_results, srpr_ground_truth);
+        srpr_metrics_calculator.add_query_result(user_idx, data_manager, srpr_lsh_results, srpr_ground_truth);
 
         // Para el primer usuario (user_idx == 0), imprimimos una demostración detallada
-        if (user_idx == 0) {
+        if (user_idx == 1) {
             std::cout << "\n--- DEMOSTRACION PARA EL PRIMER USUARIO (ID "
                       << data_manager.get_original_user_id(user_idx) << ") ---" << std::endl;
             print_recommendation_list("Fuerza Bruta con BPR (Ground Truth BPR)", bpr_ground_truth, data_manager);

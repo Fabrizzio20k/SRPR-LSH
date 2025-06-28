@@ -146,7 +146,9 @@ static std::vector<Triplet> ratings_to_triplets(const std::vector<Rating>& ratin
         const auto& user_movie_ratings = user_pair.second;
 
         std::vector<Triplet> user_triplets;
-      //  std::cout<<"For user "<<user_id <<" we have "<<user_movie_ratings.size()<<" ratings."<<std::endl;
+
+        //std::cout<<"For user "<<user_id <<" we have "<<user_movie_ratings.size()<<" ratings."<<std::endl;
+
         // Generar tripletas para este usuario
         for (size_t i = 0; i < user_movie_ratings.size(); ++i) {
             for (size_t j = i + 1; j < user_movie_ratings.size(); ++j) {

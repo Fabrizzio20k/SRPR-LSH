@@ -7,12 +7,15 @@
 #include <unordered_set>
 #include <iostream>
 #include <iomanip>
+#include <cmath> // Para log2
 
 // Almacena las métricas calculadas para una única consulta.
 struct QueryResultMetrics {
     double precision_at_k = 0.0;
     double recall_at_k = 0.0;
     double average_precision_at_k = 0.0;
+    double nDCG_at_k = 0.0; // <-- AÑADIR
+
 };
 
 class MetricsCalculator {
@@ -24,7 +27,7 @@ public:
      * @param lsh_results El top-k devuelto por el sistema LSH.
      * @param ground_truth_results El top-k devuelto por la Fuerza Bruta.
      */
-    void add_query_result(const std::vector<std::pair<int, double>>& lsh_results,
+    void add_query_result(int user_idx, const DataManager& dm,const std::vector<std::pair<int, double>>& lsh_results,
                           const std::vector<std::pair<int, double>>& ground_truth_results);
 
     /**
@@ -35,8 +38,20 @@ public:
 
 private:
     std::vector<QueryResultMetrics> collected_metrics;
+    double calculate_dcg(int k, const std::vector<std::pair<int, double>>& list, int user_idx, const DataManager& dm) const;
+
 };
-void MetricsCalculator::add_query_result(const std::vector<std::pair<int, double>>& lsh_results,
+
+double MetricsCalculator::calculate_dcg(int k, const std::vector<std::pair<int, double>>& list, int user_idx, const DataManager& dm) const {
+    double dcg = 0.0;
+    for (int i = 0; i < std::min(k, (int)list.size()); ++i) {
+        double relevance = dm.get_rating(user_idx, list[i].first);
+        dcg += relevance / std::log2(i + 2.0); // log2(i+1), pero i es 0-based, así que i+2
+    }
+    return dcg;
+}
+
+void MetricsCalculator::add_query_result(int user_idx, const DataManager& dm, const std::vector<std::pair<int, double>>& lsh_results,
                                        const std::vector<std::pair<int, double>>& ground_truth_results) {
     if (lsh_results.empty() || ground_truth_results.empty()) {
         collected_metrics.push_back({}); // Añadir resultado vacío si no hay datos
@@ -73,6 +88,17 @@ void MetricsCalculator::add_query_result(const std::vector<std::pair<int, double
     metrics.precision_at_k = hits / k;
     metrics.recall_at_k = hits / ground_truth_results.size();
 
+    // 1. Calcular DCG de la lista LSH
+    double dcg = calculate_dcg(k, lsh_results, user_idx, dm);
+
+    // 2. Calcular DCG Ideal (IDCG)
+    double idcg = calculate_dcg(k, ground_truth_results, user_idx, dm);
+
+    if (idcg > 0) {
+        metrics.nDCG_at_k = dcg / idcg;
+    }
+    // --- FIN NUEVA LÓGICA ---
+
     collected_metrics.push_back(metrics);
 }
 
@@ -85,11 +111,13 @@ void MetricsCalculator::print_average_metrics(const std::string& model_name) con
     double total_precision = 0.0;
     double total_recall = 0.0;
     double total_ap = 0.0;
+    double total_ndcg = 0.0;
 
     for (const auto& metrics : collected_metrics) {
         total_precision += metrics.precision_at_k;
         total_recall += metrics.recall_at_k;
         total_ap += metrics.average_precision_at_k;
+        total_ndcg += metrics.nDCG_at_k;
     }
 
     size_t num_queries = collected_metrics.size();
@@ -99,6 +127,7 @@ void MetricsCalculator::print_average_metrics(const std::string& model_name) con
     std::cout << "  - Precision@K Promedio:   " << std::fixed << std::setprecision(4) << (total_precision / num_queries) << std::endl;
     std::cout << "  - Recall@K Promedio:      " << std::fixed << std::setprecision(4) << (total_recall / num_queries) << std::endl;
     std::cout << "  - MAP@K (Mean Avg. Prec): " << std::fixed << std::setprecision(4) << (total_ap / num_queries) << std::endl;
+    std::cout << "  - nDCG@K Promedio:          " << std::fixed << std::setprecision(4) << (total_ndcg / num_queries) << std::endl;
     std::cout << "------------------------------------------" << std::endl;
 }
 #endif // METRICSCALCULATOR_H
