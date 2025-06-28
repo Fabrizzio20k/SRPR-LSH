@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.30.5)
+cmake_minimum_required(VERSION 3.23)
 project(SRPR_LSH)
 
 set(CMAKE_CXX_STANDARD 20)

@@ -22,7 +22,7 @@ public:
 
     virtual ~LSH() = default;
 
-    virtual string hash_vector(const Vec& vector, int table_idx) = 0;
+    virtual string hash_vector(const Vec& vector, int table_idx) = 0; // to rename hash_vector_to_code
 
     void insert(const Vec& vector, int item_id) {
         for (int i = 0; i < num_tables_; ++i) {

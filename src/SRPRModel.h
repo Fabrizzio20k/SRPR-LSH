@@ -85,10 +85,10 @@ void SRPRModel::train(const std::vector<Triplet>& triplets, int b, double learni
             double var_uj = std::max(1e-9, p_uj * (1.0 - p_uj));
             double sigma_sq = var_ui + var_uj;
             double sigma = std::sqrt(sigma_sq);
-            double sigma_cubed = sigma_sq * sigma;
+            double sigma_cubed = sigma_sq * sigma;// --->(sigma^2)^3/2
 
-            double dgamma_dpui = -1.0/sigma - (p_uj - p_ui)*(0.5 - p_ui)/sigma_cubed;
-            double dgamma_dpuj =  1.0/sigma - (p_uj - p_ui)*(0.5 - p_uj)/sigma_cubed;
+            double dgamma_dpui = -1.0/sigma - (p_uj - p_ui)*(0.5 - p_ui)/sigma_cubed; // ---> -1/sqrt(sigma^2) + (puj-pui)*(1-2pui)/2*sigma^3
+            double dgamma_dpuj =  1.0/sigma - (p_uj - p_ui)*(0.5 - p_uj)/sigma_cubed;// ---> 1/sqrt(sigma^2) - (puj-pui)*(1-2puj)/2*sigma^3
 
             // --- 4. Derivadas de p_srp respecto a los vectores ---
             double n_xu = xu.magnitude();
@@ -138,7 +138,7 @@ double SRPRModel::p_srp(const Vec& v1, const Vec& v2) const {
     double n1 = v1.magnitude();
     double n2 = v2.magnitude();
     if (n1 < 1e-12 || n2 < 1e-12) return 0.5;
-    double cosine_sim = dot(v1, v2) / (n1 * n2);
+    double cosine_sim = dot(v1, v2) / (n1 * n2); //vT*v2 / norm(v1)*norm(v2)
     return std::acos(std::max(-1.0, std::min(1.0, cosine_sim))) / M_PI;
 }
 

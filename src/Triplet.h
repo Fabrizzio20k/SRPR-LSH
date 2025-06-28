@@ -138,7 +138,7 @@ static std::vector<Triplet> ratings_to_triplets(const std::vector<Rating>& ratin
         user_ratings[rating.user_id].push_back(rating);
     }
 
-    std::cout<<"La cantidad de usuarios es ..."<<user_ratings.size()<<std::endl;;
+   // std::cout<<"La cantidad de usuarios es ..."<<user_ratings.size()<<std::endl;;
     std::mt19937 rng(42); // Seed fijo para reproducibilidad
 
     for (const auto& user_pair : user_ratings) {
@@ -146,7 +146,7 @@ static std::vector<Triplet> ratings_to_triplets(const std::vector<Rating>& ratin
         const auto& user_movie_ratings = user_pair.second;
 
         std::vector<Triplet> user_triplets;
-        std::cout<<"For user "<<user_id <<" we have "<<user_movie_ratings.size()<<" ratings."<<std::endl;
+      //  std::cout<<"For user "<<user_id <<" we have "<<user_movie_ratings.size()<<" ratings."<<std::endl;
         // Generar tripletas para este usuario
         for (size_t i = 0; i < user_movie_ratings.size(); ++i) {
             for (size_t j = i + 1; j < user_movie_ratings.size(); ++j) {

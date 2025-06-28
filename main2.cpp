@@ -50,7 +50,7 @@ int main() {
 
     // === 0. Configuración ===
     const string RATING_FILE = "../data/ratings.csv"; // Ruta al archivo de ratings
-    const int MAX_RATINGS = 8000000;
+    const int MAX_RATINGS = 10000000;
     const int D = 32;
     const int TOP_K = 10;
     const int LSH_TABLES = 10;
