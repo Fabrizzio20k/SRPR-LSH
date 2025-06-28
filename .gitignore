@@ -41,3 +41,7 @@
 *.dwo
 
 movielens
+
+# quitar carpeta build
+.idea/workspace.xml
+cmake-build-debug/
