@@ -26,6 +26,7 @@ public:
     int get_user_idx(int original_user_id) const;
     int get_original_item_id(int item_idx) const;
     int get_original_user_id(int user_idx) const; // <-- AÑADIDO: La función que faltaba
+    double get_rating(int user_idx, int item_idx) const;
 
 private:
     // Parámetros de configuración
@@ -38,6 +39,7 @@ private:
     std::unordered_map<int, int> item_to_idx;
     std::vector<int> idx_to_original_item;
     std::vector<int> idx_to_original_user; // <-- AÑADIDO: El vector para el mapeo inverso de usuarios
+    std::unordered_map<int, std::unordered_map<int, double>> internal_ratings;
 
     // Almacenamiento de las tripletas finales con índices internos
     std::vector<Triplet> triplets_with_internal_ids;
@@ -98,8 +100,29 @@ void DataManager::load_and_prepare_data() {
     std::cout << "Items unicos: " << get_num_items() << std::endl;
     std::cout << "Tripletas para entrenamiento: " << triplets_with_internal_ids.size() << std::endl;
     std::cout << "------------------------------------------" << std::endl;
-}
 
+
+    std::cout << "Creando mapa de ratings internos..." << std::endl;
+    for (const auto& rating : original_ratings) {
+        if (user_to_idx.count(rating.user_id) && item_to_idx.count(rating.movie_id)) {
+            int user_idx = user_to_idx[rating.user_id];
+            int item_idx = item_to_idx[rating.movie_id];
+            internal_ratings[user_idx][item_idx] = rating.rating;
+        }
+    }
+    std::cout << "Mapeo de ratings completado." << std::endl;
+}
+// Añadir la nueva función al final del archivo:
+double DataManager::get_rating(int user_idx, int item_idx) const {
+    auto user_it = internal_ratings.find(user_idx);
+    if (user_it != internal_ratings.end()) {
+        auto item_it = user_it->second.find(item_idx);
+        if (item_it != user_it->second.end()) {
+            return item_it->second;
+        }
+    }
+    return 0.0; // Si no hay rating, la relevancia es 0
+}
 int DataManager::get_user_idx(int original_user_id) const {
     auto it = user_to_idx.find(original_user_id);
     if (it != user_to_idx.end()) {
