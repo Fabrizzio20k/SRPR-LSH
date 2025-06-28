@@ -18,6 +18,9 @@ public:
     const Vec& get_user_vector(int user_idx) const;
     const Vec& get_item_vector(int item_idx) const;
 
+    void save_vectors(const std::string& filepath) const;
+    bool load_vectors(const std::string& filepath);
+
 private:
     int d; // Dimensiones
     std::vector<Vec> user_vectors;
@@ -92,5 +95,71 @@ const Vec& MatrixFactorization::get_user_vector(int user_idx) const {
 
 const Vec& MatrixFactorization::get_item_vector(int item_idx) const {
     return item_vectors.at(item_idx);
+}
+
+void MatrixFactorization::save_vectors(const std::string& filepath) const {
+    std::ofstream out_file(filepath);
+    if (!out_file.is_open()) {
+        std::cerr << "Error: No se pudo abrir el archivo para guardar vectores: " << filepath << std::endl;
+        return;
+    }
+
+    // Guardar metadatos: num_usuarios, num_items, dimensiones
+    out_file << user_vectors.size() << " " << item_vectors.size() << " " << d << "\n";
+
+    out_file << std::fixed << std::setprecision(8);
+
+    // Guardar vectores de usuario
+    for (const auto& vec : user_vectors) {
+        for (size_t i = 0; i < d; ++i) {
+            out_file << vec[i] << (i == d - 1 ? "" : " ");
+        }
+        out_file << "\n";
+    }
+
+    // Guardar vectores de ítem
+    for (const auto& vec : item_vectors) {
+        for (size_t i = 0; i < d; ++i) {
+            out_file << vec[i] << (i == d - 1 ? "" : " ");
+        }
+        out_file << "\n";
+    }
+
+    out_file.close();
+    std::cout << "Vectores del modelo BPR guardados en: " << filepath << std::endl;
+}
+
+// NUEVA IMPLEMENTACIÓN para cargar vectores
+bool MatrixFactorization::load_vectors(const std::string& filepath) {
+    std::ifstream in_file(filepath);
+    if (!in_file.is_open()) {
+        return false; // Archivo no encontrado, se necesita entrenar
+    }
+
+    size_t num_users, num_items, file_d;
+    in_file >> num_users >> num_items >> file_d;
+
+    if (file_d != d || num_users != user_vectors.size() || num_items != item_vectors.size()) {
+        std::cerr << "Error: Las dimensiones del archivo no coinciden con las del modelo. Se re-entrenara." << std::endl;
+        return false;
+    }
+
+    // Cargar vectores de usuario
+    for (size_t i = 0; i < num_users; ++i) {
+        for (size_t j = 0; j < d; ++j) {
+            in_file >> user_vectors[i][j];
+        }
+    }
+
+    // Cargar vectores de ítem
+    for (size_t i = 0; i < num_items; ++i) {
+        for (size_t j = 0; j < d; ++j) {
+            in_file >> item_vectors[i][j];
+        }
+    }
+
+    in_file.close();
+    std::cout << "Vectores del modelo BPR cargados desde: " << filepath << std::endl;
+    return true;
 }
 #endif // MATRIXFACTORIZATION_H

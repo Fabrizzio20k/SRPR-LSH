@@ -45,3 +45,5 @@ data/
 # quitar carpeta build
 .idea/workspace.xml
 cmake-build-debug/
+
+data/

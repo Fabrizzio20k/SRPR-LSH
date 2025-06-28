@@ -21,7 +21,8 @@ public:
     // Getters para los vectores finales (solo lectura).
     const Vec& get_user_vector(int user_idx) const;
     const Vec& get_item_vector(int item_idx) const;
-
+    void save_vectors(const std::string& filepath) const;
+    bool load_vectors(const std::string& filepath);
 private:
     int d; // Dimensiones
     std::vector<Vec> user_vectors;
@@ -85,10 +86,10 @@ void SRPRModel::train(const std::vector<Triplet>& triplets, int b, double learni
             double var_uj = std::max(1e-9, p_uj * (1.0 - p_uj));
             double sigma_sq = var_ui + var_uj;
             double sigma = std::sqrt(sigma_sq);
-            double sigma_cubed = sigma_sq * sigma;
+            double sigma_cubed = sigma_sq * sigma;// --->(sigma^2)^3/2
 
-            double dgamma_dpui = -1.0/sigma - (p_uj - p_ui)*(0.5 - p_ui)/sigma_cubed;
-            double dgamma_dpuj =  1.0/sigma - (p_uj - p_ui)*(0.5 - p_uj)/sigma_cubed;
+            double dgamma_dpui = -1.0/sigma - (p_uj - p_ui)*(0.5 - p_ui)/sigma_cubed; // ---> -1/sqrt(sigma^2) + (puj-pui)*(1-2pui)/2*sigma^3
+            double dgamma_dpuj =  1.0/sigma - (p_uj - p_ui)*(0.5 - p_uj)/sigma_cubed;// ---> 1/sqrt(sigma^2) - (puj-pui)*(1-2puj)/2*sigma^3
 
             // --- 4. Derivadas de p_srp respecto a los vectores ---
             double n_xu = xu.magnitude();
@@ -138,7 +139,7 @@ double SRPRModel::p_srp(const Vec& v1, const Vec& v2) const {
     double n1 = v1.magnitude();
     double n2 = v2.magnitude();
     if (n1 < 1e-12 || n2 < 1e-12) return 0.5;
-    double cosine_sim = dot(v1, v2) / (n1 * n2);
+    double cosine_sim = dot(v1, v2) / (n1 * n2); //vT*v2 / norm(v1)*norm(v2)
     return std::acos(std::max(-1.0, std::min(1.0, cosine_sim))) / M_PI;
 }
 
@@ -156,4 +157,68 @@ double SRPRModel::pdf(double x) const {
     return (1.0 / std::sqrt(2.0 * M_PI)) * std::exp(-0.5 * x * x);
 }
 
+inline void SRPRModel::save_vectors(const std::string &filepath) const {
+    std::ofstream out_file(filepath);
+    if (!out_file.is_open()) {
+        std::cerr << "Error: No se pudo abrir el archivo para guardar vectores: " << filepath << std::endl;
+        return;
+    }
+
+    // Guardar metadatos: num_usuarios, num_items, dimensiones
+    out_file << user_vectors.size() << " " << item_vectors.size() << " " << d << "\n";
+
+    out_file << std::fixed << std::setprecision(8);
+
+    // Guardar vectores de usuario
+    for (const auto& vec : user_vectors) {
+        for (size_t i = 0; i < d; ++i) {
+            out_file << vec[i] << (i == d - 1 ? "" : " ");
+        }
+        out_file << "\n";
+    }
+
+    // Guardar vectores de ítem
+    for (const auto& vec : item_vectors) {
+        for (size_t i = 0; i < d; ++i) {
+            out_file << vec[i] << (i == d - 1 ? "" : " ");
+        }
+        out_file << "\n";
+    }
+
+    out_file.close();
+    std::cout << "Vectores del modelo BPR guardados en: " << filepath << std::endl;
+}
+
+inline bool SRPRModel::load_vectors(const std::string &filepath) {
+    std::ifstream in_file(filepath);
+    if (!in_file.is_open()) {
+        return false; // Archivo no encontrado, se necesita entrenar
+    }
+
+    size_t num_users, num_items, file_d;
+    in_file >> num_users >> num_items >> file_d;
+
+    if (file_d != d || num_users != user_vectors.size() || num_items != item_vectors.size()) {
+        std::cerr << "Error: Las dimensiones del archivo no coinciden con las del modelo. Se re-entrenara." << std::endl;
+        return false;
+    }
+
+    // Cargar vectores de usuario
+    for (size_t i = 0; i < num_users; ++i) {
+        for (size_t j = 0; j < d; ++j) {
+            in_file >> user_vectors[i][j];
+        }
+    }
+
+    // Cargar vectores de ítem
+    for (size_t i = 0; i < num_items; ++i) {
+        for (size_t j = 0; j < d; ++j) {
+            in_file >> item_vectors[i][j];
+        }
+    }
+
+    in_file.close();
+    std::cout << "Vectores del modelo BPR cargados desde: " << filepath << std::endl;
+    return true;
+}
 #endif // SRPRMODEL_H
