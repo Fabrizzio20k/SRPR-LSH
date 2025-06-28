@@ -64,12 +64,12 @@ int main() {
     // === 2. Entrenar Modelo Base (BPR) ===
     std::cout << "\n--- ENTRENANDO MODELO BASE (BPR) ---" << std::endl;
     MatrixFactorization bpr_model(data_manager.get_num_users(), data_manager.get_num_items(), D);
-    bpr_model.train(data_manager.get_training_triplets(), 50, 0.02, 0.01);
+    bpr_model.train(data_manager.get_training_triplets(), 20, 0.02, 0.01);
 
     // === 3. Entrenar Modelo Avanzado (SRPR) ===
     std::cout << "\n--- ENTRENANDO MODELO AVANZADO (SRPR) ---" << std::endl;
     SRPRModel srpr_model(data_manager.get_num_users(), data_manager.get_num_items(), D);
-    srpr_model.train(data_manager.get_training_triplets(), LSH_HASH_SIZE, 0.05, 0.001, 50);
+    srpr_model.train(data_manager.get_training_triplets(), LSH_HASH_SIZE, 0.05, 0.001, 20);
 
     // === 4. Evaluación Cuantitativa y Demostración ===
     std::cout << "\n\n--- EVALUACION CUANTITATIVA Y DEMOSTRACION ---" << std::endl;
