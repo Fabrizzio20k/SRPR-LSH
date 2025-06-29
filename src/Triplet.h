@@ -131,31 +131,71 @@ static std::vector<Triplet> ratings_to_triplets(const std::vector<Rating>& ratin
                                                  int max_triplets_per_user = 100,
                                                  double min_rating_diff = 0.5) {
     std::vector<Triplet> triplets;
-
+    std::cout << "Agrupando ratings por usuario..." << std::endl;
     // Agrupar ratings por usuario
     std::map<int, std::vector<Rating>> user_ratings;
     for (const auto& rating : ratings) {
         user_ratings[rating.user_id].push_back(rating);
     }
 
-   // std::cout<<"La cantidad de usuarios es ..."<<user_ratings.size()<<std::endl;;
+    std::cout << "Iniciando generacion optimizada de tripletas para " << user_ratings.size() << " usuarios..." << std::endl;
     std::mt19937 rng(42); // Seed fijo para reproducibilidad
 
+    int user_count = 0;
     for (const auto& user_pair : user_ratings) {
+        if (++user_count % 1000 == 0) {
+            std::cout << "Procesando usuario " << user_count << "/" << user_ratings.size() << std::endl;
+        }
+
         int user_id = user_pair.first;
         const auto& user_movie_ratings = user_pair.second;
 
+        if (user_movie_ratings.size() < 2) {
+            continue;
+        }
+
         std::vector<Triplet> user_triplets;
 
-        //std::cout<<"For user "<<user_id <<" we have "<<user_movie_ratings.size()<<" ratings."<<std::endl;
+        // --- LÓGICA OPTIMIZADA ---
+        // En lugar de un bucle O(N^2), usamos muestreo aleatorio.
+        // Esto es mucho más eficiente para usuarios con cientos o miles de ratings.
+        if (user_movie_ratings.size() < 300) { // Para usuarios con pocos ratings, el método antiguo es aceptable y más exhaustivo
+            for (size_t i = 0; i < user_movie_ratings.size(); ++i) {
+                for (size_t j = i + 1; j < user_movie_ratings.size(); ++j) {
+                    const auto& rating_i = user_movie_ratings[i];
+                    const auto& rating_j = user_movie_ratings[j];
+                    if (std::abs(rating_i.rating - rating_j.rating) >= min_rating_diff) {
+                        if (rating_i.rating > rating_j.rating) {
+                            user_triplets.push_back({user_id, rating_i.movie_id, rating_j.movie_id});
+                        } else {
+                            user_triplets.push_back({user_id, rating_j.movie_id, rating_i.movie_id});
+                        }
+                    }
+                }
+            }
+            // Si aun así se generan demasiadas, mezclamos y cortamos.
+             if (user_triplets.size() > max_triplets_per_user) {
+                std::shuffle(user_triplets.begin(), user_triplets.end(), rng);
+                user_triplets.resize(max_triplets_per_user);
+            }
 
-        // Generar tripletas para este usuario
-        for (size_t i = 0; i < user_movie_ratings.size(); ++i) {
-            for (size_t j = i + 1; j < user_movie_ratings.size(); ++j) {
-                const auto& rating_i = user_movie_ratings[i];
-                const auto& rating_j = user_movie_ratings[j];
+        } else { // Para "power users", el muestreo aleatorio es crucial
+            std::uniform_int_distribution<size_t> dist(0, user_movie_ratings.size() - 1);
+            int attempts = 0;
+            const int max_attempts = max_triplets_per_user * 5; // Intentar 5 veces por cada tripleta deseada
 
-                // Solo crear tripleta si hay diferencia significativa en ratings
+            while (user_triplets.size() < max_triplets_per_user && attempts < max_attempts) {
+                size_t idx1 = dist(rng);
+                size_t idx2 = dist(rng);
+
+                if (idx1 == idx2) {
+                    attempts++;
+                    continue;
+                }
+
+                const auto& rating_i = user_movie_ratings[idx1];
+                const auto& rating_j = user_movie_ratings[idx2];
+
                 if (std::abs(rating_i.rating - rating_j.rating) >= min_rating_diff) {
                     if (rating_i.rating > rating_j.rating) {
                         user_triplets.push_back({user_id, rating_i.movie_id, rating_j.movie_id});
@@ -163,13 +203,8 @@ static std::vector<Triplet> ratings_to_triplets(const std::vector<Rating>& ratin
                         user_triplets.push_back({user_id, rating_j.movie_id, rating_i.movie_id});
                     }
                 }
+                attempts++;
             }
-        }
-
-        // Limitar número de tripletas por usuario y mezclar aleatoriamente
-        if (user_triplets.size() > max_triplets_per_user) {
-            std::shuffle(user_triplets.begin(), user_triplets.end(), rng);
-            user_triplets.resize(max_triplets_per_user);
         }
 
         triplets.insert(triplets.end(), user_triplets.begin(), user_triplets.end());

@@ -96,52 +96,55 @@ if(EXISTS "${DATA_DIR}/movies.csv")
 else()
     message(WARNING "⚠️  movies.csv no se pudo copiar")
 endif()
+find_package(OpenMP REQUIRED)
 
 message(STATUS "==================")
 
-# Ejecutables
-add_executable(SRPR_LSH main.cpp
-        src/lsh.h
-        #src/plane.h
-        #src/vec.h
-)
+#--- Habilitar OpenMP ---
+find_package(OpenMP REQUIRED)
+if (OpenMP_FOUND)
+message(STATUS "✅ OpenMP encontrado, se habilitará el paralelismo para los objetivos relevantes.")
+else()
+message(FATAL_ERROR "❌ No se pudo encontrar OpenMP.")
+endif()
 
-add_executable(SRPR_LSH2 main2.cpp
-        src/lsh.h
-        src/plane.h
-        src/vec.h
-        src/DataManager.h
-        src/MatrixFactorization.h
-        src/Triplet.h
-        src/SRPRModel.h
-        src/MetricsCalculator.h
-)
+# --- Definición de Ejecutables ---
+add_executable(SRPR_LSH main.cpp)
+add_executable(SRPR_LSH2 main2.cpp)
+add_executable(Tiempos data_collection/speedup.cpp)
+add_executable(Recall data_collection/recall.cpp)
+add_executable(App app.cpp)
+add_executable(generateTriplet generate_Triplets.cpp)
 
-add_executable(Tiempos data_collection/speedup.cpp
-        src/lsh.h
-        src/plane.h
-        src/vec.h
-        src/DataManager.h
-        src/MatrixFactorization.h
-        src/Triplet.h
-        src/SRPRModel.h
-        src/MetricsCalculator.h
-)
 
-add_executable(Recall data_collection/recall.cpp
-        src/lsh.h
-        src/plane.h
-        src/vec.h
-        src/DataManager.h
-        src/MatrixFactorization.h
-        src/Triplet.h
-        src/SRPRModel.h
-        src/MetricsCalculator.h
-)
-
-# Configurar directorios de include
-target_include_directories(SRPR_LSH PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_include_directories(SRPR_LSH2 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-
-# Definir la ruta del archivo de datos
+# --- Configuración de Inclusión y Definiciones ---
+set(TARGETS SRPR_LSH SRPR_LSH2 Tiempos Recall App generateTriplet)
+foreach(TARGET ${TARGETS})
+    target_include_directories(${TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+endforeach()
 target_compile_definitions(SRPR_LSH2 PRIVATE RATINGS_FILE_PATH="${DATA_DIR}/ratings.csv")
+
+
+# ==============================================================================
+# SOLUCIÓN EXPLÍCITA PARA OPENMP
+# En lugar de find_package, forzamos la bandera -fopenmp directamente.
+# ==============================================================================
+# Lista de todos los ejecutables que necesitan paralelismo
+set(PARALLEL_TARGETS
+        SRPR_LSH2
+        Tiempos
+        Recall
+        App
+        generateTriplet
+)
+
+message(STATUS "Aplicando banderas explícitas de OpenMP a: ${PARALLEL_TARGETS}")
+
+# Bucle para aplicar la configuración a cada ejecutable que lo necesite
+foreach(TARGET ${PARALLEL_TARGETS})
+    # Añadir la bandera para la fase de compilación
+    target_compile_options(${TARGET} PRIVATE -fopenmp)
+
+    # Añadir la bandera para la fase de enlazado (esto es lo que faltaba)
+    target_link_libraries(${TARGET} PRIVATE -fopenmp)
+endforeach()

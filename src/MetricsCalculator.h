@@ -27,6 +27,31 @@ public:
     void print_average_metrics(const std::string& model_name) const;
 
     double get_average_recall() const;
+    double get_average_precision() const {
+        if (collected_metrics.empty()) return 0.0;
+        double total_precision = 0.0;
+        for (const auto& m : collected_metrics) {
+            total_precision += m.precision_at_k;
+        }
+        return total_precision / collected_metrics.size();
+    }
+    double get_average_map() const {
+        if (collected_metrics.empty()) return 0.0;
+        double total_ap = 0.0;
+        for (const auto& m : collected_metrics) {
+            total_ap += m.average_precision_at_k;
+        }
+        return total_ap / collected_metrics.size();
+    }
+    double get_average_ndcg() const {
+        if (collected_metrics.empty()) return 0.0;
+        double total_ndcg = 0.0;
+        for (const auto& m : collected_metrics) {
+            total_ndcg += m.nDCG_at_k;
+        }
+        return total_ndcg / collected_metrics.size();
+    }
+
     double get_average_brute_force_time() const;
     double get_average_lsh_time() const;
 

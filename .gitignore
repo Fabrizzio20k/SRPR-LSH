@@ -47,3 +47,4 @@ data/
 cmake-build-debug/
 
 data/
+.idea/

@@ -20,7 +20,8 @@ public:
 
     void save_vectors(const std::string& filepath) const;
     bool load_vectors(const std::string& filepath);
-
+    const get_num_users() const { return user_vectors.size(); }
+    const get_num_items() const { return item_vectors.size(); }
 private:
     int d; // Dimensiones
     std::vector<Vec> user_vectors;

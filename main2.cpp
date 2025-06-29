@@ -56,8 +56,7 @@ int main() {
     // === 0. Configuración ===
     const string RATING_FILE = "../data/ratings.csv"; // Ruta al archivo de ratings
 
-    const int MAX_RATINGS = 20000000;
-
+    const int MAX_RATINGS = 22000000;
     const int D = 32;
     const int TOP_K = 10;
     const int LSH_TABLES = 12;
@@ -65,24 +64,27 @@ int main() {
     const std::string BPR_VECTORS_FILE = "../data/bpr_vectors.txt";
     const std::string SRPR_VECTORS_FILE = "../data/srpr_vectors.txt";
     // === 1. Carga de Datos ===
-    DataManager data_manager(RATING_FILE, MAX_RATINGS, 200);
+    DataManager data_manager(RATING_FILE, MAX_RATINGS, 300);
     data_manager.init(); // Esta función maneja la lógica de caché automáticamente
     if (data_manager.get_training_triplets().empty()) return 1;
+    auto triplets = data_manager.get_training_triplets();
 
+    cout << "first tripet: " << triplets[0].user_id << " " << triplets[0].preferred_item_id << " " << triplets[0].less_preferred_item_id << endl;
     // === 2. Entrenar Modelo Base (BPR) ===
     std::cout << "\n--- ENTRENANDO MODELO BASE (BPR) ---" << std::endl;
     MatrixFactorization bpr_model(data_manager.get_num_users(), data_manager.get_num_items(), D);
     if (!bpr_model.load_vectors(BPR_VECTORS_FILE)) {
         std::cout << "\n--- ENTRENANDO MODELO BASE (BPR) ---" << std::endl;
-        bpr_model.train(data_manager.get_training_triplets(), 20, 0.02, 0.01);
+        bpr_model.train(triplets, 30, 0.03, 0.01);
         bpr_model.save_vectors(BPR_VECTORS_FILE);
     }
+    triplets = data_manager.get_training_triplets();
     // === 3. Entrenar Modelo Avanzado (SRPR) ===
     std::cout << "\n--- ENTRENANDO MODELO AVANZADO (SRPR) ---" << std::endl;
     SRPRModel srpr_model(data_manager.get_num_users(), data_manager.get_num_items(), D);
     if(!srpr_model.load_vectors(SRPR_VECTORS_FILE)) {
         std::cout << "\n--- ENTRENANDO MODELO AVANZADO (SRPR) ---" << std::endl;
-        srpr_model.train(data_manager.get_training_triplets(), 8, 0.05, 0.001, 20);
+        srpr_model.train(triplets, 8, 0.03, 0.001, 30);
         srpr_model.save_vectors(SRPR_VECTORS_FILE);
     }
     // === 4. Evaluación Cuantitativa y Demostración ===
@@ -92,20 +94,20 @@ int main() {
     MetricsCalculator srpr_metrics_calculator;
     int num_test_users = 100;
 
-    std::cout << "Evaluando sobre " << std::min(num_test_users, data_manager.get_num_users())
+    std::cout << "Evaluando sobre " << std::min(num_test_users, bpr_model.get_num_users())
               << " usuarios de prueba..." << std::endl;
 
     // Pre-construimos los índices LSH una sola vez para eficiencia
     SignedRandomProjectionLSH lsh_bpr(LSH_TABLES, LSH_HASH_SIZE, D);
     LSHIndex lsh_index_bpr(lsh_bpr);
-    for (int i = 0; i < data_manager.get_num_items(); ++i) lsh_index_bpr.add(i, bpr_model.get_item_vector(i));
+    for (int i = 0; i < bpr_model.get_num_items(); ++i) lsh_index_bpr.add(i, bpr_model.get_item_vector(i));
 
     SignedRandomProjectionLSH lsh_srpr(LSH_TABLES, LSH_HASH_SIZE, D);
     LSHIndex lsh_index_srpr(lsh_srpr);
-    for (int i = 0; i < data_manager.get_num_items(); ++i) lsh_index_srpr.add(i, srpr_model.get_item_vector(i));
+    for (int i = 0; i < srpr_model.get_num_items(); ++i) lsh_index_srpr.add(i, srpr_model.get_item_vector(i));
 
     // Iteramos sobre los usuarios de prueba para acumular métricas
-    for (int user_idx = 0; user_idx < std::min(num_test_users, data_manager.get_num_users()); ++user_idx) {
+    for (int user_idx = 0; user_idx < std::min(num_test_users, srpr_model.get_num_users()); ++user_idx) {
         // --- Sistema BPR ---
         const Vec& bpr_user_vec = bpr_model.get_user_vector(user_idx);
 //--------------------------------------------------------------------------------------------------------------------------------
