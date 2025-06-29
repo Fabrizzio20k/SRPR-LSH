@@ -1,3 +1,7 @@
+#define _WIN32_WINNT 0x0A00 // Le decimos al compilador que apunte a la API de Windows 10 o superior
+#define WIN32_LEAN_AND_MEAN // Optimización estándar para una compilación más rápida en Windows
+
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -51,7 +55,31 @@ std::string metrics_to_json(const MetricsCalculator& calculator, const std::stri
     return ss.str();
 }
 
+QueryResultMetrics calculate_single_query_metrics(
+    int user_idx, const DataManager &dm,
+    const std::vector<std::pair<int, double>> &lsh_results,
+    const std::vector<std::pair<int, double>> &ground_truth_results)
+{
 
+    // Usamos una instancia temporal de MetricsCalculator para reutilizar su lógica.
+    MetricsCalculator single_query_calculator;
+    single_query_calculator.add_query_result(user_idx, dm, lsh_results, ground_truth_results, 0, 0);
+    // Devolvemos las métricas de esta única consulta.
+    return single_query_calculator.get_last_query_metrics();
+}
+
+// --- NUEVO HELPER para convertir las métricas de una consulta a JSON ---
+std::string single_metric_to_json(const QueryResultMetrics &metrics)
+{
+    std::stringstream ss;
+    ss << "{";
+    ss << "\"precision\": " << std::fixed << std::setprecision(4) << metrics.precision_at_k << ", ";
+    ss << "\"recall\": " << std::fixed << std::setprecision(4) << metrics.recall_at_k << ", ";
+    ss << "\"map\": " << std::fixed << std::setprecision(4) << metrics.average_precision_at_k << ", ";
+    ss << "\"ndcg\": " << std::fixed << std::setprecision(4) << metrics.nDCG_at_k;
+    ss << "}";
+    return ss.str();
+}
 int main(int argc, char* argv[]) {
     // === 0. Configuración y Carga/Entrenamiento de Modelos ===
     // Esta parte es idéntica a la anterior: carga datos, entrena o carga vectores.
@@ -59,8 +87,9 @@ int main(int argc, char* argv[]) {
     const int TOP_K = 10;
     const int LSH_TABLES = 12;
     const int LSH_HASH_SIZE = 8;
-
-    DataManager data_manager("../data/ratings.csv", 200000, 200);
+    const int MAX_RATINGS = 100000;
+    const int MAX_TRIPLETS_PER_USER = 100;
+    DataManager data_manager("../data/ratings.csv", MAX_RATINGS, MAX_TRIPLETS_PER_USER);
     data_manager.init();
     if (data_manager.get_training_triplets().empty()) return 1;
 
@@ -127,27 +156,35 @@ int main(int argc, char* argv[]) {
     });
 
     // --- Endpoint API: Genera recomendaciones para un usuario específico ---
-    svr.Get("/api/recommend", [&](const httplib::Request& req, httplib::Response& res) {
-        if (!req.has_param("user_id")) {
-            res.status = 400;
-            res.set_content("{\"error\": \"Falta el parametro user_id\"}", "application/json");
-            return;
-        }
-
+    svr.Get("/api/recommend", [&](const httplib::Request &req, httplib::Response &res){
+        if (!req.has_param("user_id")) { /* ... manejo de error ... */ return; }
         int user_id = std::stoi(req.get_param_value("user_id"));
         int user_idx = data_manager.get_user_idx(user_id);
+        if (user_idx == -1) { /* ... manejo de error ... */ return; }
+        int top_k = req.has_param("k") ? std::stoi(req.get_param_value("k")) : 10;
+        if (top_k <= 0)
+            top_k = 10;
+        auto start_time = std::chrono::high_resolution_clock::now();
 
-        if (user_idx == -1) {
-            res.status = 404;
-            res.set_content("{\"error\": \"Usuario no encontrado\"}", "application/json");
-            return;
-        }
+        // Generar las 4 listas de recomendaciones y medir el tiempo de cada una
+        auto t0 = std::chrono::high_resolution_clock::now();
+        auto bpr_gt = get_brute_force_vec(bpr_model.get_user_vector(user_idx), bpr_model, data_manager, top_k);
+        auto t1 = std::chrono::high_resolution_clock::now();
+        auto bpr_lsh = lsh_index_bpr.find_neighbors(bpr_model.get_user_vector(user_idx), top_k);
+        auto t2 = std::chrono::high_resolution_clock::now();
+        auto srpr_gt = get_brute_force_vec(srpr_model.get_user_vector(user_idx), srpr_model, data_manager, top_k);
+        auto t3 = std::chrono::high_resolution_clock::now();
+        auto srpr_lsh = lsh_index_srpr.find_neighbors(srpr_model.get_user_vector(user_idx), top_k);
+        auto t4 = std::chrono::high_resolution_clock::now();
+        // Calcular métricas para esta consulta específica
+        QueryResultMetrics bpr_query_metrics = calculate_single_query_metrics(user_idx, data_manager, bpr_lsh, bpr_gt);
+        QueryResultMetrics srpr_query_metrics = calculate_single_query_metrics(user_idx, data_manager, srpr_lsh, srpr_gt);
 
-        // Generar las 4 listas de recomendaciones
-        auto bpr_gt = get_brute_force_vec(bpr_model.get_user_vector(user_idx), bpr_model, data_manager, TOP_K);
-        auto bpr_lsh = lsh_index_bpr.find_neighbors(bpr_model.get_user_vector(user_idx), TOP_K);
-        auto srpr_gt = get_brute_force_vec(srpr_model.get_user_vector(user_idx), srpr_model, data_manager, TOP_K);
-        auto srpr_lsh = lsh_index_srpr.find_neighbors(srpr_model.get_user_vector(user_idx), TOP_K);
+        // Calcular duraciones en milisegundos
+        std::chrono::duration<double, std::milli> bpr_gt_time = t1 - t0;
+        std::chrono::duration<double, std::milli> bpr_lsh_time = t2 - t1;
+        std::chrono::duration<double, std::milli> srpr_gt_time = t3 - t2;
+        std::chrono::duration<double, std::milli> srpr_lsh_time = t4 - t3;
 
         // Convertir a JSON
         std::string bpr_gt_json = results_to_json(bpr_gt, data_manager);
@@ -155,16 +192,25 @@ int main(int argc, char* argv[]) {
         std::string srpr_gt_json = results_to_json(srpr_gt, data_manager);
         std::string srpr_lsh_json = results_to_json(srpr_lsh, data_manager);
 
-        // Construir la respuesta JSON final
-        std::string final_json = "{";
-        final_json += "\"bpr_ground_truth\": " + bpr_gt_json + ",";
-        final_json += "\"bpr_lsh\": " + bpr_lsh_json + ",";
-        final_json += "\"srpr_ground_truth\": " + srpr_gt_json + ",";
-        final_json += "\"srpr_lsh\": " + srpr_lsh_json;
-        final_json += "}";
+        // Construir la respuesta JSON final, incluyendo los tiempos
+        std::stringstream final_json_ss;
+        final_json_ss << "{";
+        final_json_ss << "\"bpr_ground_truth\": " << bpr_gt_json << ",";
+        final_json_ss << "\"bpr_lsh\": " << bpr_lsh_json << ",";
+        final_json_ss << "\"srpr_ground_truth\": " << srpr_gt_json << ",";
+        final_json_ss << "\"srpr_lsh\": " << srpr_lsh_json << ",";
+        final_json_ss << "\"timings\": {";
+        final_json_ss << "\"bpr_brute_force_ms\": " << bpr_gt_time.count() << ",";
+        final_json_ss << "\"bpr_lsh_ms\": " << bpr_lsh_time.count() << ",";
+        final_json_ss << "\"srpr_brute_force_ms\": " << srpr_gt_time.count() << ",";
+        final_json_ss << "\"srpr_lsh_ms\": " << srpr_lsh_time.count();
+        final_json_ss << "},";
+        final_json_ss << "\"query_metrics\": {"; // <-- NUEVO OBJETO DE MÉTRICAS
+        final_json_ss << "\"bpr\": " << single_metric_to_json(bpr_query_metrics) << ",";
+        final_json_ss << "\"srpr\": " << single_metric_to_json(srpr_query_metrics);
+        final_json_ss << "}}";
 
-        res.set_content(final_json, "application/json");
-    });
+        res.set_content(final_json_ss.str(), "application/json"); });
 
     // === 3. Iniciar el Servidor ===
     std::string host = "localhost";

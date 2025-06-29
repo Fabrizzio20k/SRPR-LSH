@@ -56,15 +56,15 @@ int main() {
     // === 0. Configuración ===
     const string RATING_FILE = "../data/ratings.csv"; // Ruta al archivo de ratings
 
-    const int MAX_RATINGS = 22000000;
+    const int MAX_RATINGS = 100000;
     const int D = 32;
     const int TOP_K = 10;
     const int LSH_TABLES = 12;
-    const int LSH_HASH_SIZE = 8;
+    const int LSH_HASH_SIZE = 6;
     const std::string BPR_VECTORS_FILE = "../data/bpr_vectors.txt";
     const std::string SRPR_VECTORS_FILE = "../data/srpr_vectors.txt";
     // === 1. Carga de Datos ===
-    DataManager data_manager(RATING_FILE, MAX_RATINGS, 300);
+    DataManager data_manager(RATING_FILE, MAX_RATINGS, 100);
     data_manager.init(); // Esta función maneja la lógica de caché automáticamente
     if (data_manager.get_training_triplets().empty()) return 1;
     auto triplets = data_manager.get_training_triplets();

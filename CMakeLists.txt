@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.30.5)
+cmake_minimum_required(VERSION 3.28)
 project(SRPR_LSH)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -121,6 +121,10 @@ add_executable(generateTriplet generate_Triplets.cpp)
 set(TARGETS SRPR_LSH SRPR_LSH2 Tiempos Recall App generateTriplet)
 foreach(TARGET ${TARGETS})
     target_include_directories(${TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if((TARGET STREQUAL "App") AND (WIN32) AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+        message(STATUS "Aplicando definiciones de Windows API para el target '${TARGET}'")
+        target_compile_definitions(${TARGET} PRIVATE _WIN32_WINNT=0x0A00 WIN32_LEAN_AND_MEAN)
+    endif()
 endforeach()
 target_compile_definitions(SRPR_LSH2 PRIVATE RATINGS_FILE_PATH="${DATA_DIR}/ratings.csv")
 

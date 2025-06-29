@@ -4,6 +4,8 @@
 //  Copyright (c) 2025 Yuji Hirose. All rights reserved.
 //  MIT License
 //
+#define _WIN32_WINNT 0x0A00
+#define WIN32_LEAN_AND_MEAN
 
 #ifndef CPPHTTPLIB_HTTPLIB_H
 #define CPPHTTPLIB_HTTPLIB_H

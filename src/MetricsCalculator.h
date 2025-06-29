@@ -25,7 +25,9 @@ public:
                           const std::vector<std::pair<int, double>>& ground_truth_results,  double new_brute_time, double new_lsh_time);
 
     void print_average_metrics(const std::string& model_name) const;
-
+    QueryResultMetrics get_last_query_metrics() const {
+        return collected_metrics.empty() ? QueryResultMetrics{} : collected_metrics.back();
+    }
     double get_average_recall() const;
     double get_average_precision() const {
         if (collected_metrics.empty()) return 0.0;
