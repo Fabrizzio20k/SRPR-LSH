@@ -64,9 +64,9 @@ void SRPRModel::train(const std::vector<Triplet>& triplets, int b, double learni
         double total_log_likelihood = 0.0;
 
         for (const auto& triplet : triplets) {
-            Vec& xu = user_vectors.at(triplet.user_id);
-            Vec& yi = item_vectors.at(triplet.preferred_item_id);
-            Vec& yj = item_vectors.at(triplet.less_preferred_item_id);
+            Vec& xu = user_vectors.at(triplet.user_id);                 // usuario
+            Vec& yi = item_vectors.at(triplet.preferred_item_id);       // item preferido
+            Vec& yj = item_vectors.at(triplet.less_preferred_item_id);  // item menos preferido
 
             // --- 1. Calcular valores intermedios ---
             double p_ui = p_srp(xu, yi);
@@ -116,10 +116,13 @@ void SRPRModel::train(const std::vector<Triplet>& triplets, int b, double learni
             Vec grad_yi = (dcos_dyi * dp_dcos_ui * dgamma_dpui) * grad_L_wrt_gamma;
             Vec grad_yj = (dcos_dyj * dp_dcos_uj * dgamma_dpuj) * grad_L_wrt_gamma;
 
-            // --- 6. Actualización de vectores ---
+            // actualizacion de vectores
             xu += (grad_xu - (xu * lambda)) * learning_rate;
             yi += (grad_yi - (yi * lambda)) * learning_rate;
             yj += (grad_yj - (yj * lambda)) * learning_rate;
+            //xu += (grad_xu);
+            //yi += (grad_yi);
+            //yj += (grad_yj);
         }
 
         auto epoch_end = std::chrono::high_resolution_clock::now();

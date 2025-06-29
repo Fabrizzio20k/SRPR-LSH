@@ -1,64 +1,56 @@
-#ifndef METRICSCALCULATOR_H
-#define METRICSCALCULATOR_H
-
+#pragma once
 #include <vector>
 #include <string>
 #include <numeric>
 #include <unordered_set>
 #include <iostream>
 #include <iomanip>
-#include <cmath> // Para log2
+#include <cmath>
+#include "DataManager.h"
 
-// Almacena las métricas calculadas para una única consulta.
 struct QueryResultMetrics {
     double precision_at_k = 0.0;
     double recall_at_k = 0.0;
     double average_precision_at_k = 0.0;
-    double nDCG_at_k = 0.0; // <-- AÑADIR
-
+    double nDCG_at_k = 0.0;
+    double time_calculation_brute = 0.0;
+    double time_calculation_lsh = 0.0;
 };
 
 class MetricsCalculator {
 public:
     MetricsCalculator() = default;
 
-    /**
-     * @brief Procesa el resultado de una consulta y calcula sus métricas.
-     * @param lsh_results El top-k devuelto por el sistema LSH.
-     * @param ground_truth_results El top-k devuelto por la Fuerza Bruta.
-     */
-    void add_query_result(int user_idx, const DataManager& dm,const std::vector<std::pair<int, double>>& lsh_results,
-                          const std::vector<std::pair<int, double>>& ground_truth_results);
+    void add_query_result(int user_idx, const DataManager& dm, const std::vector<std::pair<int, double>>& lsh_results,
+                          const std::vector<std::pair<int, double>>& ground_truth_results,  double new_brute_time, double new_lsh_time);
 
-    /**
-     * @brief Imprime un resumen con el promedio de todas las métricas acumuladas.
-     * @param model_name El nombre del modelo que se está evaluando (e.g., "LSH + BPR").
-     */
     void print_average_metrics(const std::string& model_name) const;
+
+    double get_average_recall() const;
+    double get_average_brute_force_time() const;
+    double get_average_lsh_time() const;
 
 private:
     std::vector<QueryResultMetrics> collected_metrics;
     double calculate_dcg(int k, const std::vector<std::pair<int, double>>& list, int user_idx, const DataManager& dm) const;
-
 };
 
 double MetricsCalculator::calculate_dcg(int k, const std::vector<std::pair<int, double>>& list, int user_idx, const DataManager& dm) const {
     double dcg = 0.0;
     for (int i = 0; i < std::min(k, (int)list.size()); ++i) {
         double relevance = dm.get_rating(user_idx, list[i].first);
-        dcg += relevance / std::log2(i + 2.0); // log2(i+1), pero i es 0-based, así que i+2
+        dcg += relevance / std::log2(i + 2.0);
     }
     return dcg;
 }
 
 void MetricsCalculator::add_query_result(int user_idx, const DataManager& dm, const std::vector<std::pair<int, double>>& lsh_results,
-                                       const std::vector<std::pair<int, double>>& ground_truth_results) {
+                                       const std::vector<std::pair<int, double>>& ground_truth_results, double new_brute_time, double new_lsh_time) {
     if (lsh_results.empty() || ground_truth_results.empty()) {
-        collected_metrics.push_back({}); // Añadir resultado vacío si no hay datos
+        collected_metrics.push_back({});
         return;
     }
 
-    // Crear un set con los IDs del ground truth para una búsqueda rápida (O(1) en promedio).
     std::unordered_set<int> ground_truth_ids;
     for (const auto& pair : ground_truth_results) {
         ground_truth_ids.insert(pair.first);
@@ -70,12 +62,10 @@ void MetricsCalculator::add_query_result(int user_idx, const DataManager& dm, co
     double cumulative_precision = 0.0;
 
     for (int i = 0; i < k; ++i) {
-        // Verificar si el ítem devuelto por LSH está en el conjunto de ground truth.
         bool is_relevant = ground_truth_ids.count(lsh_results[i].first);
 
         if (is_relevant) {
             hits++;
-            // P@i, Precision en la posición i.
             double precision_at_i = hits / (i + 1.0);
             cumulative_precision += precision_at_i;
         }
@@ -88,23 +78,21 @@ void MetricsCalculator::add_query_result(int user_idx, const DataManager& dm, co
     metrics.precision_at_k = hits / k;
     metrics.recall_at_k = hits / ground_truth_results.size();
 
-    // 1. Calcular DCG de la lista LSH
     double dcg = calculate_dcg(k, lsh_results, user_idx, dm);
-
-    // 2. Calcular DCG Ideal (IDCG)
     double idcg = calculate_dcg(k, ground_truth_results, user_idx, dm);
-
     if (idcg > 0) {
         metrics.nDCG_at_k = dcg / idcg;
     }
-    // --- FIN NUEVA LÓGICA ---
+
+    metrics.time_calculation_brute = new_brute_time;
+    metrics.time_calculation_lsh = new_lsh_time;
 
     collected_metrics.push_back(metrics);
 }
 
 void MetricsCalculator::print_average_metrics(const std::string& model_name) const {
     if (collected_metrics.empty()) {
-        std::cout << "No hay métricas que mostrar para " << model_name << std::endl;
+        std::cout << "No hay metricas que mostrar para " << model_name << std::endl;
         return;
     }
 
@@ -130,4 +118,31 @@ void MetricsCalculator::print_average_metrics(const std::string& model_name) con
     std::cout << "  - nDCG@K Promedio:          " << std::fixed << std::setprecision(4) << (total_ndcg / num_queries) << std::endl;
     std::cout << "------------------------------------------" << std::endl;
 }
-#endif // METRICSCALCULATOR_H
+
+double MetricsCalculator::get_average_recall() const {
+    if (collected_metrics.empty()) return 0.0;
+    double total_recall = 0.0;
+    for (const auto& m : collected_metrics) {
+        total_recall += m.recall_at_k;
+    }
+    return total_recall / collected_metrics.size();
+}
+
+double MetricsCalculator::get_average_brute_force_time() const {
+    if (collected_metrics.empty()) return 0.0;
+    double total_time = 0.0;
+    for (const auto& m : collected_metrics) {
+        total_time += m.time_calculation_brute;
+    }
+    return total_time / collected_metrics.size();
+}
+
+double MetricsCalculator::get_average_lsh_time() const {
+    if (collected_metrics.empty()) return 0.0;
+    double total_time = 0.0;
+    for (const auto& m : collected_metrics) {
+        total_time += m.time_calculation_lsh;
+    }
+    return total_time / collected_metrics.size();
+}
+

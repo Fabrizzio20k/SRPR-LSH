@@ -2,12 +2,17 @@
 #include <vector>
 #include <algorithm>
 #include <iomanip>
+#include <chrono>
 
 #include "src/DataManager.h"
 #include "src/MatrixFactorization.h"
 #include "src/SRPRModel.h"
 #include "src/lsh.h"
 #include "src/MetricsCalculator.h"
+
+using Clock = std::chrono::high_resolution_clock;
+using Millis = std::chrono::milliseconds;
+using Secs = std::chrono::seconds;
 
 // Helper para calcular la similitud del coseno
 double calculate_cosine_similarity(const Vec& vec1, const Vec& vec2) {
@@ -51,17 +56,17 @@ int main() {
     // === 0. Configuración ===
     const string RATING_FILE = "../data/ratings.csv"; // Ruta al archivo de ratings
 
-    const int MAX_RATINGS = 100000;
+    const int MAX_RATINGS = 20000000;
 
     const int D = 32;
     const int TOP_K = 10;
     const int LSH_TABLES = 12;
     const int LSH_HASH_SIZE = 8;
-    const std::string BPR_VECTORS_FILE = "bpr_vectors.txt";
-    const std::string SRPR_VECTORS_FILE = "srpr_vectors.txt";
+    const std::string BPR_VECTORS_FILE = "../data/bpr_vectors.txt";
+    const std::string SRPR_VECTORS_FILE = "../data/srpr_vectors.txt";
     // === 1. Carga de Datos ===
     DataManager data_manager(RATING_FILE, MAX_RATINGS, 200);
-    data_manager.load_and_prepare_data();
+    data_manager.init(); // Esta función maneja la lógica de caché automáticamente
     if (data_manager.get_training_triplets().empty()) return 1;
 
     // === 2. Entrenar Modelo Base (BPR) ===
@@ -103,15 +108,38 @@ int main() {
     for (int user_idx = 0; user_idx < std::min(num_test_users, data_manager.get_num_users()); ++user_idx) {
         // --- Sistema BPR ---
         const Vec& bpr_user_vec = bpr_model.get_user_vector(user_idx);
+//--------------------------------------------------------------------------------------------------------------------------------
+        auto time_start_brute = chrono::high_resolution_clock::now();
         auto bpr_ground_truth = get_brute_force_vec(bpr_user_vec, bpr_model, data_manager, TOP_K);
-        auto bpr_lsh_results = lsh_index_bpr.find_neighbors(bpr_user_vec, TOP_K);
-        bpr_metrics_calculator.add_query_result(user_idx, data_manager, bpr_lsh_results, bpr_ground_truth);
+        auto time_end_brute = chrono::high_resolution_clock::now();
 
-        // --- Sistema SRPR ---
+        auto time_start_lsh = chrono::high_resolution_clock::now();
+        auto bpr_lsh_results = lsh_index_bpr.find_neighbors(bpr_user_vec, TOP_K);
+        auto time_end_lsh = chrono::high_resolution_clock::now();
+
+
+         std::chrono::duration<double, std::milli> brute_time_bpr = time_end_brute - time_start_brute;
+        std::chrono::duration<double, std::milli> lsh_time_bpr = time_end_lsh - time_start_lsh;
+
+        bpr_metrics_calculator.add_query_result(user_idx, data_manager, bpr_lsh_results, bpr_ground_truth,brute_time_bpr.count(),  lsh_time_bpr.count());
+
+        // --- Sistema SRPR ---//--------------------------------------------------------------------------------------------------------------------------------
         const Vec& srpr_user_vec = srpr_model.get_user_vector(user_idx);
+
+        auto time_start_brute_srpr = chrono::high_resolution_clock::now();
         auto srpr_ground_truth = get_brute_force_vec(srpr_user_vec, srpr_model, data_manager, TOP_K);
+        auto time_end_brute_srpr = chrono::high_resolution_clock::now();
+
+
+
+        auto time_start_lsh_srpr = chrono::high_resolution_clock::now();
         auto srpr_lsh_results = lsh_index_srpr.find_neighbors(srpr_user_vec, TOP_K);
-        srpr_metrics_calculator.add_query_result(user_idx, data_manager, srpr_lsh_results, srpr_ground_truth);
+        auto time_end_lsh_srpr = chrono::high_resolution_clock::now();
+
+        std::chrono::duration<double, std::milli> brute_time_srpr = time_end_brute_srpr - time_start_brute_srpr;
+        std::chrono::duration<double, std::milli> lsh_time_srpr = time_end_lsh_srpr - time_start_lsh_srpr;
+
+        srpr_metrics_calculator.add_query_result(user_idx, data_manager, srpr_lsh_results, srpr_ground_truth , brute_time_srpr.count(), lsh_time_srpr.count());
 
         // Para el primer usuario (user_idx == 0), imprimimos una demostración detallada
         if (user_idx == 1) {

@@ -13,9 +13,9 @@ class DataManager {
 public:
     // El constructor toma la configuración para la carga de datos.
     DataManager(std::string ratings_path, int max_ratings, int max_triplets_per_user);
+    void init();
 
     // Carga los datos y realiza todo el preprocesamiento.
-    void load_and_prepare_data();
 
     // Getters para que el modelo y la aplicación accedan a los datos.
     const std::vector<Triplet>& get_training_triplets() const { return triplets_with_internal_ids; }
@@ -34,6 +34,8 @@ private:
     int max_ratings_to_load;
     int max_triplets_per_user;
 
+    void load_and_prepare_data();
+
     // Mapas para la conversión de IDs
     std::unordered_map<int, int> user_to_idx;
     std::unordered_map<int, int> item_to_idx;
@@ -48,7 +50,15 @@ private:
 // --- Implementaciones ---
 
 DataManager::DataManager(std::string ratings_path, int max_ratings, int max_triplets_per_user)
-    : path(ratings_path), max_ratings_to_load(max_ratings), max_triplets_per_user(max_triplets_per_user) {}
+    : path(ratings_path), max_ratings_to_load(max_ratings), max_triplets_per_user(max_triplets_per_user) {
+    // Definimos un nombre para nuestro archivo de caché
+}
+void DataManager::init() {
+    // Intenta cargar desde el caché primero. Si falla, haz el proceso largo.
+    load_and_prepare_data();
+}
+// --- Lógica de la Caché (Nuevos métodos privados) ---
+
 
 void DataManager::load_and_prepare_data() {
     std::cout << "--- Iniciando Carga y Preparacion de Datos ---" << std::endl;

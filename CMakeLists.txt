@@ -117,6 +117,28 @@ add_executable(SRPR_LSH2 main2.cpp
         src/MetricsCalculator.h
 )
 
+add_executable(Tiempos data_collection/speedup.cpp
+        src/lsh.h
+        src/plane.h
+        src/vec.h
+        src/DataManager.h
+        src/MatrixFactorization.h
+        src/Triplet.h
+        src/SRPRModel.h
+        src/MetricsCalculator.h
+)
+
+add_executable(Recall data_collection/recall.cpp
+        src/lsh.h
+        src/plane.h
+        src/vec.h
+        src/DataManager.h
+        src/MatrixFactorization.h
+        src/Triplet.h
+        src/SRPRModel.h
+        src/MetricsCalculator.h
+)
+
 # Configurar directorios de include
 target_include_directories(SRPR_LSH PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(SRPR_LSH2 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
