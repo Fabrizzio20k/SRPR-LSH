@@ -31,6 +31,57 @@ foreach(item ${CONTENTS})
     message(STATUS "  - ${item_name}")
 endforeach()
 
+# Verificar si existe la subcarpeta ml-20m
+if(EXISTS "${movielens_data_SOURCE_DIR}/ml-20m")
+    message(STATUS "✅ Carpeta ml-20m/ encontrada")
+
+    # Listar contenido de ml-20m
+    file(GLOB ML20M_CONTENTS "${movielens_data_SOURCE_DIR}/ml-20m/*")
+    message(STATUS "Contenido de ml-20m/:")
+    foreach(item ${ML20M_CONTENTS})
+        get_filename_component(item_name ${item} NAME)
+        message(STATUS "  - ${item_name}")
+    endforeach()
+
+    # COPIAR ARCHIVOS EN TIEMPO DE CONFIGURACIÓN (no en tiempo de build)
+    if(EXISTS "${movielens_data_SOURCE_DIR}/ml-20m/ratings.csv")
+        message(STATUS "📁 Copiando ratings.csv...")
+        file(COPY "${movielens_data_SOURCE_DIR}/ml-20m/ratings.csv"
+                DESTINATION "${DATA_DIR}")
+        message(STATUS "✅ ratings.csv copiado a ${DATA_DIR}")
+    else()
+        message(WARNING "❌ ratings.csv NO encontrado")
+    endif()
+
+    if(EXISTS "${movielens_data_SOURCE_DIR}/ml-20m/movies.csv")
+        message(STATUS "📁 Copiando movies.csv...")
+        file(COPY "${movielens_data_SOURCE_DIR}/ml-20m/movies.csv"
+                DESTINATION "${DATA_DIR}")
+        message(STATUS "✅ movies.csv copiado a ${DATA_DIR}")
+    else()
+        message(WARNING "❌ movies.csv NO encontrado")
+    endif()
+
+else()
+    message(WARNING "❌ Carpeta ml-20m/ NO encontrada")
+    message(STATUS "Intentando buscar archivos CSV directamente...")
+
+    # Buscar archivos CSV en el directorio raíz
+    if(EXISTS "${movielens_data_SOURCE_DIR}/ratings.csv")
+        message(STATUS "📁 Copiando ratings.csv desde raíz...")
+        file(COPY "${movielens_data_SOURCE_DIR}/ratings.csv"
+                DESTINATION "${DATA_DIR}")
+        message(STATUS "✅ ratings.csv copiado a ${DATA_DIR}")
+    endif()
+
+    if(EXISTS "${movielens_data_SOURCE_DIR}/movies.csv")
+        message(STATUS "📁 Copiando movies.csv desde raíz...")
+        file(COPY "${movielens_data_SOURCE_DIR}/movies.csv"
+                DESTINATION "${DATA_DIR}")
+        message(STATUS "✅ movies.csv copiado a ${DATA_DIR}")
+    endif()
+endif()
+
 # Verificar resultado final
 if(EXISTS "${DATA_DIR}/ratings.csv")
     file(SIZE "${DATA_DIR}/ratings.csv" RATINGS_SIZE)
