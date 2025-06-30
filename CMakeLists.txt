@@ -96,16 +96,40 @@ if(EXISTS "${DATA_DIR}/movies.csv")
 else()
     message(WARNING "⚠️  movies.csv no se pudo copiar")
 endif()
-find_package(OpenMP REQUIRED)
 
 message(STATUS "==================")
 
-#--- Habilitar OpenMP ---
+# --- Configuración de OpenMP para macOS ---
+if(APPLE)
+    # Usar la ubicación correcta de libomp desde Homebrew
+    set(LIBOMP_PREFIX "/opt/homebrew/opt/libomp")
+    set(LIBOMP_INCLUDE_DIR "${LIBOMP_PREFIX}/include")
+    set(LIBOMP_LIBRARY "${LIBOMP_PREFIX}/lib/libomp.dylib")
+    
+    # Verificar que la biblioteca existe
+    if(EXISTS ${LIBOMP_LIBRARY})
+        message(STATUS "✅ Found libomp at: ${LIBOMP_LIBRARY}")
+        
+        # Configurar OpenMP para macOS
+        set(OpenMP_C_FLAGS "-Xpreprocessor -fopenmp -I${LIBOMP_INCLUDE_DIR}")
+        set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp -I${LIBOMP_INCLUDE_DIR}")
+        set(OpenMP_C_LIB_NAMES "omp")
+        set(OpenMP_CXX_LIB_NAMES "omp")
+        set(OpenMP_omp_LIBRARY ${LIBOMP_LIBRARY})
+        
+        message(STATUS "🍎 Configured OpenMP for macOS")
+    else()
+        message(FATAL_ERROR "❌ OpenMP library not found at ${LIBOMP_LIBRARY}. Please install with: brew install libomp")
+    endif()
+endif()
+
+# Buscar OpenMP
 find_package(OpenMP REQUIRED)
-if (OpenMP_FOUND)
-message(STATUS "✅ OpenMP encontrado, se habilitará el paralelismo para los objetivos relevantes.")
+
+if(OpenMP_FOUND)
+    message(STATUS "✅ OpenMP encontrado, se habilitará el paralelismo para los objetivos relevantes.")
 else()
-message(FATAL_ERROR "❌ No se pudo encontrar OpenMP.")
+    message(FATAL_ERROR "❌ No se pudo encontrar OpenMP.")
 endif()
 
 # --- Definición de Ejecutables ---
@@ -116,24 +140,19 @@ add_executable(Recall data_collection/recall.cpp)
 add_executable(App app.cpp)
 add_executable(generateTriplet generate_Triplets.cpp)
 
-
 # --- Configuración de Inclusión y Definiciones ---
 set(TARGETS SRPR_LSH SRPR_LSH2 Tiempos Recall App generateTriplet)
 foreach(TARGET ${TARGETS})
     target_include_directories(${TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    if((TARGET STREQUAL "App") AND (WIN32) AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+    if(${TARGET} STREQUAL "App" AND WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         message(STATUS "Aplicando definiciones de Windows API para el target '${TARGET}'")
         target_compile_definitions(${TARGET} PRIVATE _WIN32_WINNT=0x0A00 WIN32_LEAN_AND_MEAN)
     endif()
 endforeach()
+
 target_compile_definitions(SRPR_LSH2 PRIVATE RATINGS_FILE_PATH="${DATA_DIR}/ratings.csv")
 
-
-# ==============================================================================
-# SOLUCIÓN EXPLÍCITA PARA OPENMP
-# En lugar de find_package, forzamos la bandera -fopenmp directamente.
-# ==============================================================================
-# Lista de todos los ejecutables que necesitan paralelismo
+# --- Configuración de OpenMP para targets específicos ---
 set(PARALLEL_TARGETS
         SRPR_LSH2
         Tiempos
@@ -142,13 +161,35 @@ set(PARALLEL_TARGETS
         generateTriplet
 )
 
-message(STATUS "Aplicando banderas explícitas de OpenMP a: ${PARALLEL_TARGETS}")
+message(STATUS "Aplicando configuración de OpenMP a: ${PARALLEL_TARGETS}")
 
-# Bucle para aplicar la configuración a cada ejecutable que lo necesite
 foreach(TARGET ${PARALLEL_TARGETS})
-    # Añadir la bandera para la fase de compilación
-    target_compile_options(${TARGET} PRIVATE -fopenmp)
-
-    # Añadir la bandera para la fase de enlazado (esto es lo que faltaba)
-    target_link_libraries(${TARGET} PRIVATE -fopenmp)
+    if(OpenMP_CXX_FOUND)
+        # Usar la configuración oficial de OpenMP
+        target_link_libraries(${TARGET} PRIVATE OpenMP::OpenMP_CXX)
+        message(STATUS "✅ OpenMP aplicado a ${TARGET}")
+    else()
+        # Fallback: aplicar configuración manual
+        if(APPLE)
+            target_compile_options(${TARGET} PRIVATE -Xpreprocessor -fopenmp)
+            target_include_directories(${TARGET} PRIVATE /opt/homebrew/opt/libomp/include)
+            target_link_libraries(${TARGET} PRIVATE /opt/homebrew/opt/libomp/lib/libomp.dylib)
+        else()
+            target_compile_options(${TARGET} PRIVATE -fopenmp)  
+            target_link_libraries(${TARGET} PRIVATE -fopenmp)
+        endif()
+        message(STATUS "⚠️  OpenMP aplicado manualmente a ${TARGET}")
+    endif()
 endforeach()
+
+# Configuración específica para el target App en macOS (fuera del bucle)
+if(APPLE)
+    message(STATUS "🔍 Verificando configuración para App en macOS...")
+    target_link_libraries(App PRIVATE 
+        "-framework CoreFoundation"
+        "-framework SystemConfiguration"
+        "-framework CFNetwork"
+        "-framework Security"
+    )
+    message(STATUS "🍎 Frameworks de macOS aplicados a App (CoreFoundation, SystemConfiguration, CFNetwork, Security)")
+endif()
