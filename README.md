@@ -19,9 +19,9 @@ Explicación de conceptos claves: [presentacion](https://gamma.app/docs/SRPR-Pro
     cmake ..
     make
     ```
-4. Ejecutar el programa:
+4. Ejecutar el programa de prueba:
     ```bash
-    ./App
+    ./SRPR_LSH
     ```
 5. Para ejecutar el frontend de la aplicación, se debe tener instalado `npm` y ejecutar:
     ```bash
@@ -43,3 +43,8 @@ Explicación de conceptos claves: [presentacion](https://gamma.app/docs/SRPR-Pro
     ```bash
     sudo apt install build-essential cmake gdb
     ```
+- Para ejecutar la API de esta implementación en su local, se uso una libreria externa `httplib.h`, para más informacion de dicha libreria ver: [httplib](https://github.com/yhirose/cpp-httplib), dicha libreria solo es compatible para usuarios Linux o MacOs y para probarlo ejecutar 
+    ```bash
+    ./App
+    ```
+      
