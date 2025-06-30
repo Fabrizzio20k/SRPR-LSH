@@ -60,7 +60,9 @@ std::string metrics_to_json(const MetricsCalculator &calculator,
   ss << "\"map\": " << std::fixed << std::setprecision(4)
      << calculator.get_average_map() << ", ";
   ss << "\"ndcg\": " << std::fixed << std::setprecision(4)
-     << calculator.get_average_ndcg();
+     << calculator.get_average_ndcg() << ", ";
+  ss << "\"n_recall\": " << std::fixed << std::setprecision(4)
+     << calculator.get_average_nrecall(); // NUEVO campo para nRecall
   ss << "}";
   return ss.str();
 }
@@ -89,7 +91,10 @@ std::string single_metric_to_json(const QueryResultMetrics &metrics) {
      << metrics.recall_at_k << ", ";
   ss << "\"map\": " << std::fixed << std::setprecision(4)
      << metrics.average_precision_at_k << ", ";
-  ss << "\"ndcg\": " << std::fixed << std::setprecision(4) << metrics.nDCG_at_k;
+  ss << "\"ndcg\": " << std::fixed << std::setprecision(4) 
+    << metrics.nDCG_at_k << ", ";
+  ss << "\"n_recall\": " << std::fixed << std::setprecision(4)
+     << metrics.n_recall_at_k;
   ss << "}";
   return ss.str();
 }
@@ -103,6 +108,8 @@ int main(int argc, char *argv[]) {
   const int LSH_HASH_SIZE = 8;
   const int MAX_RATINGS = 22000000;
   const int MAX_TRIPLETS_PER_USER = 300;
+  const double MAX_RATING_VALUE = 5.0; // ¡IMPORTANTE! Define el valor de calificación máxima
+  int num_test_users = 1000;
   DataManager data_manager("../data/ratings.csv", MAX_RATINGS,
                            MAX_TRIPLETS_PER_USER);
   data_manager.init();
@@ -139,10 +146,10 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < data_manager.get_num_items(); ++i)
     lsh_index_srpr.add(i, srpr_model.get_item_vector(i));
 
-  int num_test_users = 100;
-  for (int user_idx = 0;
-       user_idx < std::min(num_test_users, data_manager.get_num_users());
-       ++user_idx) {
+
+  for (int i = 0; i < std::min(num_test_users, data_manager.get_num_users()); ++i) {
+    int user_idx = rand() % data_manager.get_num_users();
+    
     // BPR
     auto bpr_gt = get_brute_force_vec(bpr_model.get_user_vector(user_idx),
                                       bpr_model, data_manager, TOP_K);
@@ -150,6 +157,9 @@ int main(int argc, char *argv[]) {
         bpr_model.get_user_vector(user_idx), TOP_K);
     bpr_metrics_calculator.add_query_result(user_idx, data_manager, bpr_lsh,
                                             bpr_gt, 0, 0);
+    // Añadimos métricas para nRecall
+    bpr_metrics_calculator.add_query_result_for_nrecall(
+        user_idx, data_manager, bpr_lsh, MAX_RATING_VALUE, 0);
 
     // SRPR
     auto srpr_gt = get_brute_force_vec(srpr_model.get_user_vector(user_idx),
@@ -158,6 +168,9 @@ int main(int argc, char *argv[]) {
         srpr_model.get_user_vector(user_idx), TOP_K);
     srpr_metrics_calculator.add_query_result(user_idx, data_manager, srpr_lsh,
                                              srpr_gt, 0, 0);
+    // Añadimos métricas para nRecall
+    srpr_metrics_calculator.add_query_result_for_nrecall(
+        user_idx, data_manager, srpr_lsh, MAX_RATING_VALUE, 0);
   }
   std::cout << "--- Pre-calculo completado ---" << std::endl;
 
@@ -300,8 +313,3 @@ get_brute_force_vec(const Vec &user_vec, const T &model, const DataManager &dm,
   }
   return top_results;
 }
-
-// Nota: He tenido que hacer ajustes en MetricsCalculator para que las funciones
-// get_... sean públicas para que el helper metrics_to_json pueda acceder a
-// ellas. Deberás modificar tu MetricsCalculator.h para que esos getters sean
-// public.

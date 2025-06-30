@@ -66,7 +66,6 @@ const QueryMetricsDisplay = ({ title, metrics, color }) => {
       <ul>
         <li><strong>Recall @K:</strong> {(metrics.recall * 100).toFixed(2)}%</li>
         <li><strong>nDCG @K:</strong> {metrics.ndcg.toFixed(4)}</li>
-        <li><strong>MAP @K:</strong> {metrics.map.toFixed(4)}</li>
       </ul>
     </div>
   );
@@ -120,10 +119,10 @@ function App() {
   };
 
   const chartData = {
-    labels: ['Precision@10', 'Recall@10', 'MAP@10', 'nDCG@10'],
+    labels: ['nRecall@10', 'Recall@10', 'nDCG@10'],
     datasets: metrics.map((metric, index) => ({
       label: metric.model,
-      data: [metric.precision, metric.recall, metric.map, metric.ndcg],
+      data: [metric.n_recall, metric.recall, metric.ndcg],
       backgroundColor: metric.model.includes('SRPR') ? 'rgba(54, 162, 235, 0.6)' : 'rgba(255, 99, 132, 0.6)',
       borderColor: metric.model.includes('SRPR') ? 'rgba(54, 162, 235, 1)' : 'rgba(255, 99, 132, 1)',
       borderWidth: 1,
@@ -139,7 +138,7 @@ function App() {
       {error && <p style={{color: 'red', textAlign: 'center'}}>{error}</p>}
       
       <section className="metrics-container">
-        <h2>Comparación de Métricas de Calidad</h2>
+        <h2>Comparación de Métricas de Calidad con 1000 Usuarios</h2>
         <div className="chart-container">
           {metrics.length > 0 ? <Bar data={chartData} options={{ responsive: true }} /> : <p>Cargando métricas...</p>}
         </div>

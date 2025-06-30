@@ -11,10 +11,12 @@
 struct QueryResultMetrics {
     double precision_at_k = 0.0;
     double recall_at_k = 0.0;
+    double n_recall_at_k = 0.0;
     double average_precision_at_k = 0.0;
     double nDCG_at_k = 0.0;
     double time_calculation_brute = 0.0;
     double time_calculation_lsh = 0.0;
+    bool is_people_with_ranting_max = false;
 };
 
 class MetricsCalculator {
@@ -24,11 +26,21 @@ public:
     void add_query_result(int user_idx, const DataManager& dm, const std::vector<std::pair<int, double>>& lsh_results,
                           const std::vector<std::pair<int, double>>& ground_truth_results,  double new_brute_time, double new_lsh_time);
 
-    void print_average_metrics(const std::string& model_name) const;
+    void add_query_result_for_nrecall(
+        int user_idx,
+        const DataManager &dm,
+        const std::vector<std::pair<int, double>> &lsh_results,
+        double max_rating_value,
+        double new_lsh_time
+    );
+
+    void print_average_metrics(const std::string &model_name) const;
     QueryResultMetrics get_last_query_metrics() const {
         return collected_metrics.empty() ? QueryResultMetrics{} : collected_metrics.back();
     }
     double get_average_recall() const;
+    double get_average_nrecall() const; // NUEVO getter
+
     double get_average_precision() const {
         if (collected_metrics.empty()) return 0.0;
         double total_precision = 0.0;
@@ -70,7 +82,57 @@ double MetricsCalculator::calculate_dcg(int k, const std::vector<std::pair<int, 
     }
     return dcg;
 }
+void MetricsCalculator::add_query_result_for_nrecall(
+    int user_idx,
+    const DataManager &dm,
+    const std::vector<std::pair<int, double>> &lsh_results,
+    double max_rating_value,
+    double new_lsh_time)
+{
+    // 1. Encontrar todos los ítems con calificación máxima para el usuario (el "ground truth" del paper)
+    std::unordered_set<int> max_rated_item_ids;
+    for (int item_idx = 0; item_idx < dm.get_num_items(); ++item_idx)
+    {
+        if (dm.get_rating(user_idx, item_idx) == max_rating_value)
+        {
+            max_rated_item_ids.insert(item_idx);
+        }
+    }
 
+    if (max_rated_item_ids.empty())
+    {
+        return; // No añadir métricas para este usuario
+    }
+
+    // 2. Contar cuántos de esos ítems "preferidos" están en la lista de recomendación de LSH
+    double hits = 0.0;
+    for (const auto &result : lsh_results)
+    {
+        if (max_rated_item_ids.count(result.first))
+        {
+            hits++;
+        }
+    }
+
+    // 3. Calcular Recall@k
+    int k = lsh_results.size();
+    size_t total_max_rated_items = max_rated_item_ids.size();
+    double recall_at_k = (total_max_rated_items > 0) ? (hits / total_max_rated_items) : 0.0;
+
+    // 4. Calcular Ideal Recall@k para la normalización
+    double ideal_recall_at_k = (total_max_rated_items > 0) ? (static_cast<double>(std::min((size_t)k, total_max_rated_items)) / total_max_rated_items) : 0.0;
+
+    // 5. Calcular nRecall@k
+    double n_recall_at_k = (ideal_recall_at_k > 0) ? (recall_at_k / ideal_recall_at_k) : 0.0;
+
+    // Guardar la métrica
+    // cout<<"nRecall@k for user "<<user_idx<<" is "<<max_rated_item_ids.size()<<endl;
+    QueryResultMetrics metrics;
+    metrics.n_recall_at_k = n_recall_at_k;
+    metrics.time_calculation_lsh = new_lsh_time;
+    metrics.is_people_with_ranting_max = true;
+    collected_metrics.push_back(metrics);
+}
 void MetricsCalculator::add_query_result(int user_idx, const DataManager& dm, const std::vector<std::pair<int, double>>& lsh_results,
                                        const std::vector<std::pair<int, double>>& ground_truth_results, double new_brute_time, double new_lsh_time) {
     if (lsh_results.empty() || ground_truth_results.empty()) {
@@ -127,12 +189,14 @@ void MetricsCalculator::print_average_metrics(const std::string& model_name) con
     double total_recall = 0.0;
     double total_ap = 0.0;
     double total_ndcg = 0.0;
+    double total_n_recall = 0.0;
 
     for (const auto& metrics : collected_metrics) {
         total_precision += metrics.precision_at_k;
         total_recall += metrics.recall_at_k;
         total_ap += metrics.average_precision_at_k;
         total_ndcg += metrics.nDCG_at_k;
+        total_n_recall += metrics.n_recall_at_k;
     }
 
     size_t num_queries = collected_metrics.size();
@@ -143,6 +207,7 @@ void MetricsCalculator::print_average_metrics(const std::string& model_name) con
     std::cout << "  - Recall@K Promedio:      " << std::fixed << std::setprecision(4) << (total_recall / num_queries) << std::endl;
     std::cout << "  - MAP@K (Mean Avg. Prec): " << std::fixed << std::setprecision(4) << (total_ap / num_queries) << std::endl;
     std::cout << "  - nDCG@K Promedio:          " << std::fixed << std::setprecision(4) << (total_ndcg / num_queries) << std::endl;
+    std::cout << "  - nRecall@K Promedio:     " << std::fixed << std::setprecision(4) << (total_n_recall / num_queries) << std::endl;
     std::cout << "------------------------------------------" << std::endl;
 }
 
@@ -173,3 +238,18 @@ double MetricsCalculator::get_average_lsh_time() const {
     return total_time / collected_metrics.size();
 }
 
+double MetricsCalculator::get_average_nrecall() const
+{
+    if (collected_metrics.empty())
+        return 0.0;
+    double total_n_recall = 0.0;
+    int Umax_count = 0;
+    for (const auto &m : collected_metrics)
+    {
+        total_n_recall += m.n_recall_at_k;
+        if (m.is_people_with_ranting_max)
+            Umax_count++;
+    }
+    // cout<<"For this case -->"<<Umax_count<<endl;
+    return total_n_recall / Umax_count;
+}
