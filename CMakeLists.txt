@@ -99,6 +99,66 @@ endif()
 
 message(STATUS "==================")
 
+# --- Descargar archivos adicionales desde Google Drive ---
+message(STATUS "=== DESCARGANDO ARCHIVOS ADICIONALES ===")
+
+# --- Descargar archivos adicionales desde Google Drive ---
+message(STATUS "=== DESCARGANDO ARCHIVOS ADICIONALES ===")
+
+# --- Descargar archivos adicionales desde Google Drive ---
+message(STATUS "=== DESCARGANDO ARCHIVOS ADICIONALES ===")
+
+# Definir URLs y nombres por separado
+set(DRIVE_URLS
+    "https://drive.usercontent.google.com/u/0/uc?id=1PxnJUGxcGFPi0nriS68sOSh5fgRgnxaH&export=download"
+    "https://drive.usercontent.google.com/u/0/uc?id=19dFZL1VNsftk4ZzC3In5xo_Xdx4JRN2e&export=download"
+    "https://drive.usercontent.google.com/download?id=1YZ7CX7opfxTEsaOjOOtNKE_n45TtAjOz&export=download&confirm=t"
+)
+
+set(DRIVE_NAMES
+    "bpr_vectors.txt"
+    "srpr_vectors.txt"
+    "preprocessed_data.22000000.300.cache"
+)
+
+list(LENGTH DRIVE_URLS NUM_FILES)
+math(EXPR NUM_FILES_MINUS_1 "${NUM_FILES} - 1")
+
+foreach(i RANGE 0 ${NUM_FILES_MINUS_1})
+    list(GET DRIVE_URLS ${i} FILE_URL)
+    list(GET DRIVE_NAMES ${i} FILE_NAME)
+    
+    set(DESTINATION_FILE "${DATA_DIR}/${FILE_NAME}")
+    
+    if(NOT EXISTS ${DESTINATION_FILE})
+        message(STATUS "📥 Descargando ${FILE_NAME}...")
+        file(DOWNLOAD 
+            "${FILE_URL}"
+            "${DESTINATION_FILE}"
+            SHOW_PROGRESS
+            TIMEOUT 120
+            STATUS DOWNLOAD_STATUS
+        )
+        
+        list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+        if(STATUS_CODE EQUAL 0)
+            file(SIZE "${DESTINATION_FILE}" FILE_SIZE)
+            message(STATUS "✅ ${FILE_NAME} descargado exitosamente (${FILE_SIZE} bytes)")
+        else()
+            list(GET DOWNLOAD_STATUS 1 ERROR_MESSAGE)
+            message(WARNING "❌ Error descargando ${FILE_NAME}: ${ERROR_MESSAGE}")
+            if(EXISTS "${DESTINATION_FILE}")
+                file(REMOVE "${DESTINATION_FILE}")
+            endif()
+        endif()
+    else()
+        file(SIZE "${DESTINATION_FILE}" FILE_SIZE)
+        message(STATUS "📁 ${FILE_NAME} ya existe (${FILE_SIZE} bytes)")
+    endif()
+endforeach()
+
+message(STATUS "==================")
+
 # --- Configuración de OpenMP para macOS ---
 if(APPLE)
     # Usar la ubicación correcta de libomp desde Homebrew
