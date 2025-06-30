@@ -40,4 +40,13 @@
 # debug information files
 *.dwo
 
-movielens
+data/
+
+# quitar carpeta build
+.idea/workspace.xml
+cmake-build-debug/
+.vscode/
+build/
+data_final/
+data/
+.idea/
