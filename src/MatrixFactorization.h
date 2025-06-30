@@ -1,49 +1,48 @@
-#ifndef MATRIXFACTORIZATION_H
-#define MATRIXFACTORIZATION_H
-
+#pragma once
 #include <vector>
-#include "DataManager.h" // Depende de DataManager para las tripletas
-#include "vec.h"         // ¡Usa la nueva clase Vec!
+#include "DataManager.h" 
+#include "vec.h"         
 #include <random>
 #include <cmath>
 #include <iostream>
+
+using namespace std;
+
 class MatrixFactorization {
 public:
     MatrixFactorization(int num_users, int num_items, int dimensions);
 
-    // El método de entrenamiento opera sobre las tripletas proporcionadas por DataManager
-    void train(const std::vector<Triplet>& triplets, int epochs, double learning_rate, double lambda);
+    void train(const vector<Triplet>& triplets, int epochs, double learning_rate, double lambda);
 
-    // Devuelve los vectores latentes aprendidos
     const Vec& get_user_vector(int user_idx) const;
     const Vec& get_item_vector(int item_idx) const;
 
-    void save_vectors(const std::string& filepath) const;
-    bool load_vectors(const std::string& filepath);
+    void save_vectors(const string& filepath) const;
+    bool load_vectors(const string& filepath);
     int get_num_users() const { return user_vectors.size(); }
     int get_num_items() const { return item_vectors.size(); }
+
 private:
     int d; // Dimensiones
-    std::vector<Vec> user_vectors;
-    std::vector<Vec> item_vectors;
+    vector<Vec> user_vectors;
+    vector<Vec> item_vectors;
 
     double sigmoid(double x) const;
 };
+
 MatrixFactorization::MatrixFactorization(int num_users, int num_items, int dimensions) : d(dimensions) {
-    // Inicializar vectores de usuarios y ítems con la clase Vec
     user_vectors.reserve(num_users);
     for (int i = 0; i < num_users; ++i) {
-        user_vectors.emplace_back(d); // Crea un Vec de dimensión d
+        user_vectors.emplace_back(d); 
     }
 
     item_vectors.reserve(num_items);
     for (int i = 0; i < num_items; ++i) {
-        item_vectors.emplace_back(d); // Crea un Vec de dimensión d
+        item_vectors.emplace_back(d); 
     }
 
-    // Llenar con valores aleatorios pequeños
-    std::mt19937 rng(42); // Semilla fija para reproducibilidad
-    std::normal_distribution<double> dist(0.0, 0.1);
+    mt19937 rng(42); // Semilla fija para reproducibilidad
+    normal_distribution<double> dist(0.0, 0.1);
     for (auto& vec : user_vectors) {
         for (size_t i = 0; i < d; ++i) vec[i] = dist(rng);
     }
@@ -53,12 +52,12 @@ MatrixFactorization::MatrixFactorization(int num_users, int num_items, int dimen
 }
 
 double MatrixFactorization::sigmoid(double x) const {
-    return 1.0 / (1.0 + std::exp(-x));
+    return 1.0 / (1.0 + exp(-x));
 }
 
-void MatrixFactorization::train(const std::vector<Triplet>& triplets, int epochs, double learning_rate, double lambda) {
+void MatrixFactorization::train(const vector<Triplet>& triplets, int epochs, double learning_rate, double lambda) {
     if (triplets.empty()) {
-        std::cerr << "Error: No hay tripletas para entrenar." << std::endl;
+        cerr << "Error: No hay tripletas para entrenar." << endl;
         return;
     }
 
@@ -86,7 +85,7 @@ void MatrixFactorization::train(const std::vector<Triplet>& triplets, int epochs
             pos_item_vec += pos_item_grad * learning_rate;
             neg_item_vec += neg_item_grad * learning_rate;
         }
-        std::cout << "Epoch " << epoch << "/" << epochs << " completado." << std::endl;
+        cout << "Epoch " << epoch << "/" << epochs << " completado." << endl;
     }
 }
 
@@ -98,19 +97,17 @@ const Vec& MatrixFactorization::get_item_vector(int item_idx) const {
     return item_vectors.at(item_idx);
 }
 
-void MatrixFactorization::save_vectors(const std::string& filepath) const {
-    std::ofstream out_file(filepath);
+void MatrixFactorization::save_vectors(const string& filepath) const {
+    ofstream out_file(filepath);
     if (!out_file.is_open()) {
-        std::cerr << "Error: No se pudo abrir el archivo para guardar vectores: " << filepath << std::endl;
+        cerr << "Error: No se pudo abrir el archivo para guardar vectores: " << filepath << endl;
         return;
     }
 
-    // Guardar metadatos: num_usuarios, num_items, dimensiones
     out_file << user_vectors.size() << " " << item_vectors.size() << " " << d << "\n";
 
-    out_file << std::fixed << std::setprecision(8);
+    out_file << fixed << setprecision(8);
 
-    // Guardar vectores de usuario
     for (const auto& vec : user_vectors) {
         for (size_t i = 0; i < d; ++i) {
             out_file << vec[i] << (i == d - 1 ? "" : " ");
@@ -118,7 +115,6 @@ void MatrixFactorization::save_vectors(const std::string& filepath) const {
         out_file << "\n";
     }
 
-    // Guardar vectores de ítem
     for (const auto& vec : item_vectors) {
         for (size_t i = 0; i < d; ++i) {
             out_file << vec[i] << (i == d - 1 ? "" : " ");
@@ -127,32 +123,29 @@ void MatrixFactorization::save_vectors(const std::string& filepath) const {
     }
 
     out_file.close();
-    std::cout << "Vectores del modelo BPR guardados en: " << filepath << std::endl;
+    cout << "Vectores del modelo BPR guardados en: " << filepath << endl;
 }
 
-// NUEVA IMPLEMENTACIÓN para cargar vectores
-bool MatrixFactorization::load_vectors(const std::string& filepath) {
-    std::ifstream in_file(filepath);
+bool MatrixFactorization::load_vectors(const string& filepath) {
+    ifstream in_file(filepath);
     if (!in_file.is_open()) {
-        return false; // Archivo no encontrado, se necesita entrenar
+        return false; 
     }
 
     size_t num_users, num_items, file_d;
     in_file >> num_users >> num_items >> file_d;
 
     if (file_d != d || num_users != user_vectors.size() || num_items != item_vectors.size()) {
-        std::cerr << "Error: Las dimensiones del archivo no coinciden con las del modelo. Se re-entrenara." << std::endl;
+        cerr << "Error: Las dimensiones del archivo no coinciden con las del modelo. Se re-entrenara." << endl;
         return false;
     }
 
-    // Cargar vectores de usuario
     for (size_t i = 0; i < num_users; ++i) {
         for (size_t j = 0; j < d; ++j) {
             in_file >> user_vectors[i][j];
         }
     }
 
-    // Cargar vectores de ítem
     for (size_t i = 0; i < num_items; ++i) {
         for (size_t j = 0; j < d; ++j) {
             in_file >> item_vectors[i][j];
@@ -160,7 +153,6 @@ bool MatrixFactorization::load_vectors(const std::string& filepath) {
     }
 
     in_file.close();
-    std::cout << "Vectores del modelo BPR cargados desde: " << filepath << std::endl;
+    cout << "Vectores del modelo BPR cargados desde: " << filepath << endl;
     return true;
 }
-#endif // MATRIXFACTORIZATION_H

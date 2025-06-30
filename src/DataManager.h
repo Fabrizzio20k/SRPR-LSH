@@ -1,5 +1,4 @@
-#ifndef DATA_MANAGER_H
-#define DATA_MANAGER_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -7,12 +6,14 @@
 #include <fstream>
 #include "Triplet.h"
 
+using namespace std;
+
 class DataManager {
 public:
-    DataManager(std::string ratings_path, int max_ratings, int max_triplets_per_user);
+    DataManager(string ratings_path, int max_ratings, int max_triplets_per_user);
     void init();
 
-    const std::vector<Triplet>& get_training_triplets() const { return triplets_with_internal_ids; }
+    const vector<Triplet>& get_training_triplets() const { return triplets_with_internal_ids; }
     int get_num_users() const { return user_to_idx.size(); }
     int get_num_items() const { return item_to_idx.size(); }
 
@@ -22,63 +23,60 @@ public:
     double get_rating(int user_idx, int item_idx) const;
 
 private:
-    std::string path;
-    std::string cache_path; // Ruta al archivo de caché
+    string path;
+    string cache_path; 
     int max_ratings_to_load;
     int max_triplets_per_user;
 
     // Métodos para manejar los datos
     void load_and_prepare_data();
 
-    // --- NUEVOS MÉTODOS PARA EL CACHÉ ---
     bool load_cache();
     void save_cache() const;
 
     // Mapas para la conversión de IDs
-    std::unordered_map<int, int> user_to_idx;
-    std::unordered_map<int, int> item_to_idx;
-    std::vector<int> idx_to_original_user;
-    std::vector<int> idx_to_original_item;
-    std::unordered_map<int, std::unordered_map<int, double>> internal_ratings;
+    unordered_map<int, int> user_to_idx;
+    unordered_map<int, int> item_to_idx;
+    vector<int> idx_to_original_user;
+    vector<int> idx_to_original_item;
+    unordered_map<int, unordered_map<int, double>> internal_ratings;
 
-    std::vector<Triplet> triplets_with_internal_ids;
+    vector<Triplet> triplets_with_internal_ids;
 };
 
-// --- Implementaciones ---
-
-DataManager::DataManager(std::string ratings_path, int max_ratings, int max_triplets_per_user)
-    : path(std::move(ratings_path)), max_ratings_to_load(max_ratings), max_triplets_per_user(max_triplets_per_user) {
+DataManager::DataManager(string ratings_path, int max_ratings, int max_triplets_per_user)
+    : path(move(ratings_path)), max_ratings_to_load(max_ratings), max_triplets_per_user(max_triplets_per_user) {
     // Definimos un nombre para nuestro archivo de caché basado en los parámetros
-    cache_path = "../data/preprocessed_data." + std::to_string(max_ratings) + "." + std::to_string(max_triplets_per_user) + ".cache";
+    cache_path = "../data/preprocessed_data." + to_string(max_ratings) + "." + to_string(max_triplets_per_user) + ".cache";
 }
 
 void DataManager::init() {
-    std::cout << "--- Inicializando DataManager ---" << std::endl;
-    std::cout << "Buscando cache en: " << cache_path << std::endl;
+    cout << "--- Inicializando DataManager ---" << endl;
+    cout << "Buscando cache en: " << cache_path << endl;
     if (load_cache()) {
-        std::cout << "Cache cargado exitosamente. Saltando preprocesamiento." << std::endl;
-        std::cout << "------------------------------------------" << std::endl;
+        cout << "Cache cargado exitosamente. Saltando preprocesamiento." << endl;
+        cout << "------------------------------------------" << endl;
     } else {
-        std::cout << "Cache no encontrado o invalido. Realizando preprocesamiento completo..." << std::endl;
+        cout << "Cache no encontrado o invalido. Realizando preprocesamiento completo..." << endl;
         load_and_prepare_data();
-        std::cout << "Preprocesamiento completo. Guardando en cache para futuras ejecuciones..." << std::endl;
+        cout << "Preprocesamiento completo. Guardando en cache para futuras ejecuciones..." << endl;
         save_cache();
-        std::cout << "Cache guardado exitosamente." << std::endl;
-        std::cout << "------------------------------------------" << std::endl;
+        cout << "Cache guardado exitosamente." << endl;
+        cout << "------------------------------------------" << endl;
     }
 }
 
 void DataManager::load_and_prepare_data() {
-    std::cout << "--- Iniciando Carga y Preparacion de Datos ---" << std::endl;
-    std::vector<Rating> original_ratings = load_movielens_ratings(path, max_ratings_to_load);
+    cout << "--- Iniciando Carga y Preparacion de Datos ---" << endl;
+    vector<Rating> original_ratings = load_movielens_ratings(path, max_ratings_to_load);
     if (original_ratings.empty()) {
-        std::cerr << "No se pudieron cargar ratings. Terminando." << std::endl;
+        cerr << "No se pudieron cargar ratings. Terminando." << endl;
         return;
     }
 
-    std::vector<Triplet> original_triplets = ratings_to_triplets(original_ratings, max_triplets_per_user);
+    vector<Triplet> original_triplets = ratings_to_triplets(original_ratings, max_triplets_per_user);
 
-    std::cout << "Creando mapeos de ID a indices internos..." << std::endl;
+    cout << "Creando mapeos de ID a indices internos..." << endl;
     int next_user_idx = 0;
     int next_item_idx = 0;
 
@@ -106,22 +104,22 @@ void DataManager::load_and_prepare_data() {
         });
     }
 
-    std::cout << "Creando mapa de ratings internos..." << std::endl;
+    cout << "Creando mapa de ratings internos..." << endl;
     for (const auto& rating : original_ratings) {
         if (user_to_idx.count(rating.user_id) && item_to_idx.count(rating.movie_id)) {
             internal_ratings[user_to_idx.at(rating.user_id)][item_to_idx.at(rating.movie_id)] = rating.rating;
         }
     }
-    std::cout << "Mapeo de datos completado." << std::endl;
-    std::cout << "Usuarios unicos: " << get_num_users() << std::endl;
-    std::cout << "Items unicos: " << get_num_items() << std::endl;
-    std::cout << "Tripletas para entrenamiento: " << triplets_with_internal_ids.size() << std::endl;
+    cout << "Mapeo de datos completado." << endl;
+    cout << "Usuarios unicos: " << get_num_users() << endl;
+    cout << "Items unicos: " << get_num_items() << endl;
+    cout << "Tripletas para entrenamiento: " << triplets_with_internal_ids.size() << endl;
 }
 
 // --- Implementación de los Métodos de Caché ---
 
 bool DataManager::load_cache() {
-    std::ifstream cache_file(cache_path, std::ios::binary);
+    ifstream cache_file(cache_path, ios::binary);
     if (!cache_file.is_open()) return false;
 
     try {
@@ -167,22 +165,22 @@ bool DataManager::load_cache() {
             internal_ratings[user_idx][item_idx] = rating;
         }
 
-        std::cout << "Cache cargado exitosamente desde: " << cache_path << std::endl;
-        std::cout << "Usuarios unicos: " << get_num_users() << std::endl;
-        std::cout << "Items unicos: " << get_num_items() << std::endl;
-        std::cout << "Tripletas para entrenamiento: " << triplets_with_internal_ids.size() << std::endl;
+        cout << "Cache cargado exitosamente desde: " << cache_path << endl;
+        cout << "Usuarios unicos: " << get_num_users() << endl;
+        cout << "Items unicos: " << get_num_items() << endl;
+        cout << "Tripletas para entrenamiento: " << triplets_with_internal_ids.size() << endl;
 
-    } catch (const std::exception& e) {
-        std::cerr << "Error leyendo el cache: " << e.what() << ". Se regenerara." << std::endl;
+    } catch (const exception& e) {
+        cerr << "Error leyendo el cache: " << e.what() << ". Se regenerara." << endl;
         return false;
     }
     return true;
 }
 
 void DataManager::save_cache() const {
-    std::ofstream cache_file(cache_path, std::ios::binary);
+    ofstream cache_file(cache_path, ios::binary);
     if (!cache_file.is_open()) {
-        std::cerr << "Error: No se pudo crear el archivo de cache en " << cache_path << std::endl;
+        cerr << "Error: No se pudo crear el archivo de cache en " << cache_path << endl;
         return;
     }
 
@@ -221,7 +219,6 @@ void DataManager::save_cache() const {
     }
 }
 
-// --- Implementación de Getters (sin cambios) ---
 int DataManager::get_user_idx(int original_user_id) const {
     auto it = user_to_idx.find(original_user_id);
     return (it != user_to_idx.end()) ? it->second : -1;
@@ -245,5 +242,3 @@ double DataManager::get_rating(int user_idx, int item_idx) const {
     }
     return 0.0;
 }
-
-#endif // DATA_MANAGER_H
