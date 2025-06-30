@@ -1,6 +1,8 @@
 # SRPR-LSH
 Proyecto final del curso de Estructuras de Datos Avanzadas
+
 Explicación de conceptos claves: [presentacion](https://gamma.app/docs/SRPR-Proyecto-Final-4x15flrleotw0fy)
+
 # INSTRUCCIONES DE EJECUCIÓN
 1. Clonar el repositorio:
     ```bash
